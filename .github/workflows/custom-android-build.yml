@@ -1,0 +1,30 @@
+
+# Pourquoi ce fichier existe : ci.yml (celui d'hiddify, synced depuis
+# l'upstream) appelle build.yml SANS préciser `channel: prod`. Résultat :
+# le Makefile télécharge le core "draft" (version de dev, mouvante) au
+# lieu de la version épinglée dans dependencies.properties, ce qui casse
+# la compilation Kotlin de façon totalement indépendante du tag d'app
+# choisi. On ne touche pas à ci.yml (fichier upstream, sync auto chaque
+# nuit) : on ajoute ce fichier à côté, qui fait la même chose mais avec
+# channel=prod.
+
+name: Custom Android Build (channel=prod)
+ 
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch: {}
+ 
+concurrency:
+  group: custom-android-${{ github.ref }}
+  cancel-in-progress: true
+ 
+jobs:
+  run:
+    uses: ./.github/workflows/build.yml
+    secrets: inherit
+    permissions: write-all
+    with:
+      upload-artifact: true
+      channel: prod
