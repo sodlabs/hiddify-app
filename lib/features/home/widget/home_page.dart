@@ -5,6 +5,7 @@ import 'package:gap/gap.dart';
 import 'package:hiddify/core/app_info/app_info_provider.dart';
 import 'package:hiddify/core/localization/translations.dart';
 import 'package:hiddify/core/router/bottom_sheets/bottom_sheets_notifier.dart';
+import 'package:hiddify/features/gfp/gfp_proxy_service.dart';
 import 'package:hiddify/features/home/widget/connection_button.dart';
 import 'package:hiddify/features/home/widget/third_party_warning_banner.dart';
 import 'package:hiddify/features/profile/data/profile_data_providers.dart';
@@ -15,12 +16,6 @@ import 'package:hiddify/features/proxy/active/active_proxy_delay_indicator.dart'
 import 'package:hiddify/gen/assets.gen.dart';
 import 'package:hooks_riverpod/hooks_riverpod.dart';
 import 'package:sliver_tools/sliver_tools.dart';
-
-// URL de la subscription auto-générée par gfp-fetcher (voir le repo
-// gfp-subscription). Remplace par ta vraie URL une fois GIT_REPO_DIR en
-// place et le premier push effectué.
-const String kDefaultFreeProxySubscriptionUrl =
-    'https://raw.githubusercontent.com/allanjoshuaf/gfp-subscription/main/subscription.txt';
 
 class HomePage extends HookConsumerWidget {
   const HomePage({super.key});
@@ -33,18 +28,60 @@ class HomePage extends HookConsumerWidget {
     final activeProfile = ref.watch(activeProfileProvider);
     final hasAnyProfile = ref.watch(hasAnyProfileProvider);
 
-    // Premier lancement (aucun profil) : on ajoute automatiquement notre
-    // subscription par défaut, pour que l'utilisateur n'ait rien à coller
-    // manuellement. Ne s'exécute qu'une fois grâce à la dep sur la valeur
-    // "hasAnyProfile == false"; dès qu'un profil existe, ce useEffect ne
-    // se redéclenche plus jamais (pas de boucle, pas de doublon).
+    // 100% client-side: on ne pointe plus vers une URL de subscription
+    // hébergée par nous. L'app fetch/teste elle-même les listes publiques
+    // gfpcom, en local. Ne se déclenche qu'une fois grâce à la dep sur
+    // hasAnyProfile.value; une fois un profil "sodlab" créé, ce useEffect
+    // ne fait plus rien tant qu'aucun refresh explicite n'est demandé.
+    final gfpError = useState<String?>(null);
+    final gfpStatus = useState<String>('idle');
+
     useEffect(() {
-      final noProfileYet = hasAnyProfile.value == false;
-      if (noProfileYet) {
-        ref.read(profileRepositoryProvider.future).then((repo) {
-          repo.upsertRemote(kDefaultFreeProxySubscriptionUrl).run();
-        });
+      Future<void> run() async {
+        try {
+          gfpStatus.value = 'starting';
+          final repo = await ref.read(profileRepositoryProvider.future);
+          final service = GfpProxyService();
+
+          List<dynamic> allProfiles = [];
+          try {
+            final either = await repo.watchAll().first;
+            allProfiles = either.getOrElse((_) => []);
+          } catch (_) {
+            // pas grave, on retentera au prochain lancement
+          }
+
+          final existing = allProfiles.where((p) => p.name == kGfpProfileTitle).firstOrNull;
+
+          if (existing == null) {
+            gfpStatus.value = 'fetching';
+            final cached = await service.loadLastKnownGood();
+            final content = cached ?? await service.refresh(
+              onProgress: (done, total) => gfpStatus.value = 'test $done/$total',
+            );
+            gfpStatus.value = 'adding profile';
+            final result = await repo.addLocal(content).run();
+            result.match(
+              (failure) => gfpError.value = 'addLocal a échoué: $failure',
+              (_) => gfpStatus.value = 'done',
+            );
+          } else {
+            final fresh = await service.loadFreshCache();
+            if (fresh == null) {
+              gfpStatus.value = 'refreshing';
+              service.refresh().then((content) {
+                repo.offlineUpdate(existing, content).run();
+              });
+            }
+            gfpStatus.value = 'done (existing)';
+          }
+        } catch (e, st) {
+          gfpError.value = '$e';
+          debugPrint('sodlab gfp error: $e\n$st');
+        }
       }
+
+      run();
       return null;
     }, [hasAnyProfile.value]);
 
@@ -86,6 +123,15 @@ class HomePage extends HookConsumerWidget {
           //           tooltip: t.profile.add.buttonText,
           //         )),
           Semantics(
+            key: const ValueKey("profile_quick_settings"),
+            label: t.pages.home.quickSettings,
+            child: IconButton(
+              icon: Icon(Icons.tune_rounded, color: theme.colorScheme.primary),
+              onPressed: () => ref.read(bottomSheetsNotifierProvider.notifier).showQuickSettings(),
+            ),
+          ),
+          const Gap(8),
+          Semantics(
             key: const ValueKey("profile_add_button"),
             label: t.pages.profiles.add,
             child: IconButton(
@@ -99,6 +145,26 @@ class HomePage extends HookConsumerWidget {
       body: Column(
         children: [
           const ThirdPartyWarningBanner(),
+          if (gfpError.value != null)
+            Container(
+              width: double.infinity,
+              color: Colors.red.shade900,
+              padding: const EdgeInsets.all(8),
+              child: Text(
+                'sodlab debug: ${gfpError.value}',
+                style: const TextStyle(color: Colors.white, fontSize: 11),
+              ),
+            )
+          else if (gfpStatus.value != 'done' && gfpStatus.value != 'done (existing)')
+            Container(
+              width: double.infinity,
+              color: Colors.blue.shade900,
+              padding: const EdgeInsets.all(6),
+              child: Text(
+                'sodlab: ${gfpStatus.value}',
+                style: const TextStyle(color: Colors.white, fontSize: 11),
+              ),
+            ),
           Expanded(
             child: Container(
         decoration: BoxDecoration(
@@ -151,7 +217,6 @@ class HomePage extends HookConsumerWidget {
                                 ),
                               ),
                               ActiveProxyFooter(),
-                              Gap(32),
                             ],
                           ),
                         ),
@@ -168,43 +233,6 @@ class HomePage extends HookConsumerWidget {
                 ),
               ),
             ),
-            if (ref.watch(hasAnyProfileProvider).value ?? false)
-              Positioned(
-                right: 0,
-                left: 0,
-                bottom: 0,
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Material(
-                      color: theme.colorScheme.primaryContainer,
-                      borderRadius: const BorderRadius.only(
-                        topLeft: Radius.circular(16),
-                        topRight: Radius.circular(16),
-                      ),
-                      child: InkWell(
-                        borderRadius: const BorderRadius.only(
-                          topLeft: Radius.circular(16),
-                          topRight: Radius.circular(16),
-                        ),
-                        onTap: () => ref.read(bottomSheetsNotifierProvider.notifier).showQuickSettings(),
-                        child: Container(
-                          height: 32,
-                          padding: const EdgeInsetsDirectional.only(start: 16, end: 8),
-                          child: Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              Text(t.pages.home.quickSettings),
-                              const Gap(4),
-                              const Icon(Icons.arrow_drop_up_rounded, size: 16),
-                            ],
-                          ),
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
           ],
         ),
             ),
