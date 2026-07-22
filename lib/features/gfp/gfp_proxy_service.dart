@@ -71,7 +71,7 @@ class GfpProxyService {
     int maxCandidatesToTest = 400,
     int concurrency = 40,
     Duration testTimeout = const Duration(seconds: 4),
-    int maxFinal = 300,
+    int maxFinal = 40,
     void Function(int done, int total)? onProgress,
   }) async {
     var all = <GfpProxyCandidate>[];

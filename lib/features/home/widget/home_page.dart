@@ -30,9 +30,7 @@ class HomePage extends HookConsumerWidget {
 
     // 100% client-side: on ne pointe plus vers une URL de subscription
     // hébergée par nous. L'app fetch/teste elle-même les listes publiques
-    // gfpcom, en local. Ne se déclenche qu'une fois grâce à la dep sur
-    // hasAnyProfile.value; une fois un profil "sodlab" créé, ce useEffect
-    // ne fait plus rien tant qu'aucun refresh explicite n'est demandé.
+    // gfpcom, en local.
     final gfpError = useState<String?>(null);
     final gfpStatus = useState<String>('idle');
 

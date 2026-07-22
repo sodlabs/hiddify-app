@@ -6,37 +6,19 @@
 // chaque ligne est conservé tel quel pour la subscription finale (hiddify
 // re-parsera lui-même le detail du protocole).
 
+import 'dart:convert';
+
 import 'gfp_proxy_models.dart';
 
-// Temporairement restreint à vless le temps de diagnostiquer un crash du
-// moteur natif au démarrage du tunnel (voir CLAUDE.md). vmess/trojan/etc
-// remis plus tard une fois la cause isolée.
 const Set<String> kSupportedSchemes = {
   'vless',
+  'vmess',
+  'trojan',
+  'ss',
+  'hy2',
+  'hysteria2',
+  'tuic',
 };
-
-/// Validation structurelle minimale avant d'inclure un candidat -- un
-/// candidat qui répond au TCP/TLS mais dont l'URI est incomplète peut
-/// quand même faire planter le moteur natif au moment de construire la
-/// config réelle. On écarte ici tout ce qui semble structurellement
-/// incomplet plutôt que de laisser le moteur en décider (il ne le fait
-/// visiblement pas gracieusement).
-bool _looksStructurallyValid(Uri uri) {
-  // vless: le userInfo porte l'UUID, jamais vide
-  if (uri.userInfo.isEmpty) return false;
-
-  final security = (uri.queryParameters['security'] ?? '').toLowerCase();
-  if (security == 'reality') {
-    final pbk = uri.queryParameters['pbk'] ?? '';
-    final sni = uri.queryParameters['sni'] ?? '';
-    if (pbk.isEmpty || sni.isEmpty) return false;
-  } else if (security == 'tls') {
-    final sni = uri.queryParameters['sni'] ?? '';
-    if (sni.isEmpty) return false;
-  }
-
-  return true;
-}
 
 Uri? _safeParseUri(String line) {
   try {
@@ -64,12 +46,22 @@ String _extractLabel(Uri uri) {
 /// Validation structurelle minimale avant d'inclure un candidat dans la
 /// subscription finale. Notre test réseau vérifie la joignabilité, pas la
 /// validité complète de la config -- une liste publique scrapée contient
-/// forcément des lignes incomplètes/cassées. sing-box est strict au
-/// démarrage : une seule config invalide dans le lot peut faire planter
-/// tout le moteur natif. On filtre donc ce qu'on peut vérifier au niveau
-/// de l'URI avant de la transmettre.
+/// forcément des lignes incomplètes/cassées.
+/// Une clé publique Reality (X25519) doit décoder en exactement 32 octets.
+/// Certaines entrées scrapées ont une valeur qui ressemble à du base64 mais
+/// qui ne décode pas à la bonne longueur -- ça passe une simple vérification
+/// "non vide" mais peut faire planter le moteur natif au démarrage.
+bool _isValidX25519PublicKey(String value) {
+  try {
+    final normalized = base64Url.normalize(value);
+    final bytes = base64Url.decode(normalized);
+    return bytes.length == 32;
+  } catch (_) {
+    return false;
+  }
+}
+
 bool _isStructurallyValid(Uri uri, String scheme, bool reality) {
-  // uuid (userInfo, avant le @) obligatoire pour vless/vmess/trojan
   if (uri.userInfo.isEmpty) return false;
 
   if (scheme == 'vless') {
@@ -77,9 +69,8 @@ bool _isStructurallyValid(Uri uri, String scheme, bool reality) {
     if ((params['encryption'] ?? '').isEmpty) return false;
 
     if (reality) {
-      // reality exige une clé publique et un SNI non vides ; le short id
-      // peut légitimement être vide, donc on ne le vérifie pas.
-      if ((params['pbk'] ?? '').isEmpty) return false;
+      final pbk = params['pbk'] ?? '';
+      if (pbk.isEmpty || !_isValidX25519PublicKey(pbk)) return false;
       if ((params['sni'] ?? '').isEmpty) return false;
       if ((params['fp'] ?? '').isEmpty) return false;
     }
@@ -102,7 +93,6 @@ List<GfpProxyCandidate> parseProxyList(String rawText, {bool realityOnly = false
 
     final scheme = uri.scheme.toLowerCase();
     if (!kSupportedSchemes.contains(scheme)) continue;
-    if (!_looksStructurallyValid(uri)) continue;
 
     // Uri.host retire déjà les crochets IPv6 automatiquement (équivalent
     // au .replace(/^\[|\]$/g, '') qu'on faisait côté Node).
