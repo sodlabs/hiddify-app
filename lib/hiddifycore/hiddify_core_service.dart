@@ -183,22 +183,39 @@ class HiddifyCoreService with InfraLogger {
           );
         }
       } on GrpcError catch (e) {
-        loggy.error("failed to start bg core: $e");
+        final failureMessage = await _backgroundStartFailureMessage(e);
+        loggy.error("failed to start bg core: $e; diagnostic: $failureMessage");
         ref.read(coreRestartSignalProvider.notifier).restart();
         if (e.code == StatusCode.unavailable) {
-          return left(const ConnectionFailure.unexpected("background core is not started yet!"));
+          return left(ConnectionFailure.unexpected(failureMessage));
         }
         // throw InvalidConfig(e.message);
         // throw DioException.connectionError(requestOptions: RequestOptions(), reason: e.codeName, error: e);
 
         // throw DioException(requestOptions: RequestOptions(), error: e);
-        return left(const ConnectionFailure.unexpected("failed to start background core"));
+        return left(ConnectionFailure.unexpected(failureMessage));
       }
 
       // if (res.messageType != MessageType.EMPTY) return left(res);
 
       return right(unit);
     });
+  }
+
+  /// Conserve l'erreur native sur l'appareil afin que le message affiché ne
+  /// masque pas la cause (configuration, permission VPN, libbox, etc.). Les
+  /// journaux restent locaux, sont limités côté Android et ne sont jamais
+  /// capturés par la télémétrie.
+  Future<String> _backgroundStartFailureMessage(GrpcError error) async {
+    final details = <String>[];
+    final grpcMessage = error.message?.trim();
+    if (grpcMessage != null && grpcMessage.isNotEmpty) details.add(grpcMessage);
+
+    final nativeDiagnostic = await core.readNativeDiagnostic();
+    if (nativeDiagnostic != null && nativeDiagnostic.isNotEmpty) details.add(nativeDiagnostic);
+
+    if (details.isEmpty) return "failed to start background core";
+    return "failed to start background core: ${details.join("\n")}";
   }
 
   TaskEither<String, Unit> stop() {

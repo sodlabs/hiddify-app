@@ -180,6 +180,18 @@ class CoreInterfaceMobile extends CoreInterface with InfraLogger {
   Future<bool> isActiveBg() async {
     return await isPortOpen("127.0.0.1", portBack);
   }
+
+  @override
+  Future<String?> readNativeDiagnostic() async {
+    try {
+      final diagnostic = await methodChannel.invokeMethod<String>("read_core_stderr");
+      final trimmed = diagnostic?.trim();
+      return trimmed == null || trimmed.isEmpty ? null : trimmed;
+    } on PlatformException catch (error) {
+      loggy.warning("unable to read local core diagnostic: $error");
+      return null;
+    }
+  }
 }
 
 Future<bool> waitUntilPort(

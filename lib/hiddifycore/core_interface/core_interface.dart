@@ -43,6 +43,13 @@ class CoreInterface {
     return true;
   }
 
+  /// Retourne uniquement le diagnostic local du dernier échec natif, quand
+  /// la plate-forme sait le fournir. Il ne doit jamais être synchronisé ni
+  /// envoyé vers un service distant.
+  Future<String?> readNativeDiagnostic() async {
+    return null;
+  }
+
   bool isInitialized() {
     try {
       bgClient; // touch it

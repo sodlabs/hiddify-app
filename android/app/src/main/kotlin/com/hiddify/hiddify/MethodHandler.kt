@@ -18,6 +18,7 @@ import kotlinx.coroutines.GlobalScope
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import java.io.File
+import java.io.RandomAccessFile
 
 class MethodHandler(private val scope: CoroutineScope) : FlutterPlugin,
     MethodChannel.MethodCallHandler {
@@ -31,6 +32,7 @@ class MethodHandler(private val scope: CoroutineScope) : FlutterPlugin,
             Setup("setup"),
             Start("start"),
             Stop("stop"),
+            ReadCoreStderr("read_core_stderr"),
             Restart("restart"),
             AddGrpcClientPublicKey("add_grpc_client_public_key"),
             GetGrpcServerPublicKey("get_grpc_server_public_key"),
@@ -118,6 +120,7 @@ class MethodHandler(private val scope: CoroutineScope) : FlutterPlugin,
                         Settings.activeProfileName = args["name"] as String? ?: ""
                         Settings.debugMode = args["debug"] as Boolean? ?: false
                         Settings.grpcServiceModePort = args["grpcPort"] as Int
+                        clearCoreStderr()
 
                         val mainActivity = MainActivity.instance
 //                        val started = mainActivity.serviceStatus.value == Status.Started
@@ -145,6 +148,12 @@ class MethodHandler(private val scope: CoroutineScope) : FlutterPlugin,
                         BoxService.stop()
                         success(true)
                     }
+                }
+            }
+
+            Trigger.ReadCoreStderr.method -> {
+                result.runCatching {
+                    success(readCoreStderrTail())
                 }
             }
 
@@ -176,6 +185,36 @@ class MethodHandler(private val scope: CoroutineScope) : FlutterPlugin,
 //            }
 
             else -> result.notImplemented()
+        }
+    }
+
+    /**
+     * Le core natif écrit son erreur dans ces fichiers. On ne retourne qu'une
+     * petite fin du journal, uniquement à Flutter sur le même appareil : rien
+     * n'est envoyé au réseau et les données du profil ne restent pas dans la
+     * mémoire de l'interface plus longtemps que nécessaire.
+     */
+    private fun readCoreStderrTail(): String {
+        val maxBytes = 4096L
+        return listOf("stderr.log", "stderr2.log").mapNotNull { name ->
+            val file = File(Settings.workingDir, name)
+            if (!file.isFile) return@mapNotNull null
+
+            runCatching {
+                RandomAccessFile(file, "r").use { input ->
+                    val start = (input.length() - maxBytes).coerceAtLeast(0)
+                    input.seek(start)
+                    val bytes = ByteArray((input.length() - start).toInt())
+                    input.readFully(bytes)
+                    "[$name]\n${bytes.toString(Charsets.UTF_8)}"
+                }
+            }.getOrNull()
+        }.joinToString("\n")
+    }
+
+    private fun clearCoreStderr() {
+        listOf("stderr.log", "stderr2.log").forEach { name ->
+            runCatching { File(Settings.workingDir, name).delete() }
         }
     }
 }
