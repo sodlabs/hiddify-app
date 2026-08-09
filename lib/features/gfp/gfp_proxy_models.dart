@@ -42,8 +42,8 @@ class GfpProxyCandidate {
   int get priorityScore {
     if (reality) return 0;
     if (scheme == 'vless') return 1;
-    if (scheme == 'vmess') return 2;
-    if (scheme == 'trojan') return 3;
+    if (scheme == 'trojan') return 2;
+    if (scheme == 'vmess') return 3;
     return 4;
   }
 }

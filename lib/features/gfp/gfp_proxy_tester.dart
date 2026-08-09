@@ -10,7 +10,7 @@
 
 import 'dart:io';
 
-import 'gfp_proxy_models.dart';
+import 'package:hiddify/features/gfp/gfp_proxy_models.dart';
 
 class GfpTestResult {
   GfpTestResult({required this.reachable, this.latencyMs, required this.stage, this.error});
@@ -21,8 +21,8 @@ class GfpTestResult {
   final String? error;
 }
 
-/// Teste un candidat : TCP d'abord, puis upgrade TLS si un SNI est présent
-/// dans l'URI d'origine. Ne lève jamais d'exception -- toute erreur devient
+/// Teste un candidat : TCP d'abord, puis handshake TLS seulement pour les
+/// protocoles qui parlent réellement TLS standard. Ne lève jamais d'exception -- toute erreur devient
 /// un GfpTestResult(reachable: false), même chose que le try/catch
 /// défensif ajouté côté Node après le crash rencontré en production.
 Future<GfpTestResult> testCandidate(
@@ -39,32 +39,45 @@ Future<GfpTestResult> testCandidate(
   }
 
   String? sni;
+  var requiresStandardTls = candidate.scheme == 'trojan';
   try {
     final uri = Uri.parse(candidate.raw);
     final value = uri.queryParameters['sni'];
     if (value != null && value.isNotEmpty) sni = value;
+    requiresStandardTls =
+        requiresStandardTls ||
+        (candidate.scheme == 'vless' &&
+            !candidate.reality &&
+            (uri.queryParameters['security'] ?? '').toLowerCase() == 'tls');
   } catch (_) {
     sni = null;
   }
 
-  if (sni == null) {
-    // Pas de SNI attendu dans la config : le TCP est jugé suffisant,
-    // même logique que côté Node.
+  if (!requiresStandardTls) {
+    // Reality n'est pas un serveur TLS classique : lui envoyer un ClientHello
+    // TLS seul produit volontairement un échec. Un TCP ouvert est donc le
+    // test léger correct ici; le core vérifiera le protocole complet lors de
+    // la connexion, toujours localement sur l'appareil.
     final latency = DateTime.now().difference(start).inMilliseconds;
     socket.destroy();
     return GfpTestResult(reachable: true, latencyMs: latency, stage: 'tcp');
   }
 
   // Le SNI ne peut jamais être une adresse IP (même contrainte que
-  // net.isIP() côté Node -- ici InternetAddress.tryParse()). Beaucoup de
-  // configs ont un sni vide ou égal à une IP : dans ce cas on fait le
-  // handshake TLS sans host de vérification plutôt que de planter.
-  final sniIsIp = InternetAddress.tryParse(sni) != null;
+  // net.isIP() côté Node -- ici InternetAddress.tryParse()). L'API Dart
+  // exige un nom d'hôte non nul : sans SNI valide, le TCP reste le test
+  // léger sûr plutôt qu'un ClientHello incorrect ou un crash.
+  final sniIsIp = sni != null && InternetAddress.tryParse(sni) != null;
+  if (sni == null || sniIsIp) {
+    final latency = DateTime.now().difference(start).inMilliseconds;
+    socket.destroy();
+    return GfpTestResult(reachable: true, latencyMs: latency, stage: 'tcp');
+  }
 
   try {
     final secure = await SecureSocket.secure(
       socket,
-      host: sniIsIp ? null : sni,
+      host: sni,
       onBadCertificate: (cert) => true, // on veut juste voir si TLS répond
     ).timeout(timeout);
     final latency = DateTime.now().difference(start).inMilliseconds;
@@ -82,7 +95,7 @@ Future<GfpTestResult> testCandidate(
 /// même si Dart est mono-thread côté event loop.
 Future<List<GfpProxyCandidate>> testAll(
   List<GfpProxyCandidate> candidates, {
-  int concurrency = 40,
+  int concurrency = 6,
   Duration timeout = const Duration(seconds: 4),
   void Function(int done, int total)? onProgress,
 }) async {
@@ -100,10 +113,7 @@ Future<List<GfpProxyCandidate>> testAll(
 
       final candidate = candidates[i];
       final result = await testCandidate(candidate, timeout: timeout);
-      results[i] = candidate.copyWith(
-        reachable: result.reachable,
-        latencyMs: result.latencyMs,
-      );
+      results[i] = candidate.copyWith(reachable: result.reachable, latencyMs: result.latencyMs);
       done++;
       onProgress?.call(done, candidates.length);
     }

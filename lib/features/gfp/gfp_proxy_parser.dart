@@ -6,23 +6,43 @@
 // chaque ligne est conservé tel quel pour la subscription finale (hiddify
 // re-parsera lui-même le detail du protocole).
 
-import 'gfp_proxy_models.dart';
+import 'dart:convert';
 
-const Set<String> kSupportedSchemes = {
-  'vless',
-  'vmess',
-  'trojan',
-  'ss',
-  'hy2',
-  'hysteria2',
-  'tuic',
-};
+import 'package:hiddify/features/gfp/gfp_proxy_models.dart';
+
+const Set<String> kSupportedSchemes = {'vless', 'vmess', 'trojan', 'ss', 'hy2', 'hysteria2', 'tuic'};
 
 Uri? _safeParseUri(String line) {
   try {
     final uri = Uri.parse(line.trim());
     if (uri.scheme.isEmpty || uri.host.isEmpty) return null;
     return uri;
+  } catch (_) {
+    return null;
+  }
+}
+
+GfpProxyCandidate? _parseVmess(String line) {
+  const prefix = 'vmess://';
+  if (!line.toLowerCase().startsWith(prefix)) return null;
+
+  try {
+    var encoded = line.substring(prefix.length).trim();
+    encoded = encoded.replaceAll('-', '+').replaceAll('_', '/');
+    encoded = encoded.padRight(encoded.length + (4 - encoded.length % 4) % 4, '=');
+    final config = jsonDecode(utf8.decode(base64Decode(encoded))) as Map<String, dynamic>;
+    final host = config['add']?.toString().trim() ?? '';
+    final port = int.tryParse(config['port']?.toString() ?? '') ?? 443;
+    if (host.isEmpty || port < 1 || port > 65535) return null;
+
+    return GfpProxyCandidate(
+      scheme: 'vmess',
+      host: host,
+      port: port,
+      reality: false,
+      label: config['ps']?.toString().trim() ?? '',
+      raw: line,
+    );
   } catch (_) {
     return null;
   }
@@ -50,6 +70,13 @@ List<GfpProxyCandidate> parseProxyList(String rawText, {bool realityOnly = false
   final seen = <String>{};
 
   for (final line in lines) {
+    final vmess = _parseVmess(line);
+    if (vmess != null) {
+      final dedupKey = '${vmess.scheme}|${vmess.host}|${vmess.port}';
+      if (!realityOnly && seen.add(dedupKey)) candidates.add(vmess);
+      continue;
+    }
+
     final uri = _safeParseUri(line);
     if (uri == null) continue;
 
@@ -70,14 +97,7 @@ List<GfpProxyCandidate> parseProxyList(String rawText, {bool realityOnly = false
     seen.add(dedupKey);
 
     candidates.add(
-      GfpProxyCandidate(
-        scheme: scheme,
-        host: host,
-        port: port,
-        reality: reality,
-        label: _extractLabel(uri),
-        raw: line,
-      ),
+      GfpProxyCandidate(scheme: scheme, host: host, port: port, reality: reality, label: _extractLabel(uri), raw: line),
     );
   }
 
@@ -86,6 +106,14 @@ List<GfpProxyCandidate> parseProxyList(String rawText, {bool realityOnly = false
 
 List<GfpProxyCandidate> sortByPriority(List<GfpProxyCandidate> candidates) {
   final sorted = List<GfpProxyCandidate>.from(candidates);
-  sorted.sort((a, b) => a.priorityScore.compareTo(b.priorityScore));
+  sorted.sort((a, b) {
+    final byProtocol = a.priorityScore.compareTo(b.priorityScore);
+    if (byProtocol != 0) return byProtocol;
+
+    // Un test TCP/TLS qui réussit ne garantit pas qu'un proxy sera utile,
+    // mais, à protocole égal, commencer par les plus rapides limite la durée
+    // du premier url-test du core.
+    return (a.latencyMs ?? 1 << 30).compareTo(b.latencyMs ?? 1 << 30);
+  });
   return sorted;
 }

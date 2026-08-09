@@ -1,3 +1,6 @@
+import 'dart:async';
+
+import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:dartx/dartx.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_hooks/flutter_hooks.dart';
@@ -9,6 +12,8 @@ import 'package:hiddify/features/gfp/gfp_proxy_service.dart';
 import 'package:hiddify/features/home/widget/connection_button.dart';
 import 'package:hiddify/features/home/widget/third_party_warning_banner.dart';
 import 'package:hiddify/features/profile/data/profile_data_providers.dart';
+import 'package:hiddify/features/profile/data/profile_repository.dart';
+import 'package:hiddify/features/profile/model/profile_entity.dart';
 import 'package:hiddify/features/profile/notifier/active_profile_notifier.dart';
 import 'package:hiddify/features/profile/widget/profile_tile.dart';
 import 'package:hiddify/features/proxy/active/active_proxy_card.dart';
@@ -16,60 +21,64 @@ import 'package:hiddify/features/proxy/active/active_proxy_delay_indicator.dart'
 import 'package:hiddify/gen/assets.gen.dart';
 import 'package:hooks_riverpod/hooks_riverpod.dart';
 import 'package:sliver_tools/sliver_tools.dart';
- 
+
 class HomePage extends HookConsumerWidget {
   const HomePage({super.key});
- 
+
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final theme = Theme.of(context);
     final t = ref.watch(translationsProvider).requireValue;
     // final hasAnyProfile = ref.watch(hasAnyProfileProvider);
     final activeProfile = ref.watch(activeProfileProvider);
-    final hasAnyProfile = ref.watch(hasAnyProfileProvider);
- 
+
     // 100% client-side: on ne pointe plus vers une URL de subscription
     // hébergée par nous. L'app fetch/teste elle-même les listes publiques
     // gfpcom, en local.
     final gfpError = useState<String?>(null);
     final gfpStatus = useState<String>('idle');
- 
+
     useEffect(() {
       Future<void> run() async {
         try {
           gfpStatus.value = 'starting';
           final repo = await ref.read(profileRepositoryProvider.future);
           final service = GfpProxyService();
- 
-          List<dynamic> allProfiles = [];
+
+          List<ProfileEntity> allProfiles = [];
           try {
             final either = await repo.watchAll().first;
-            allProfiles = either.getOrElse((_) => []);
+            allProfiles = either.getOrElse((_) => <ProfileEntity>[]);
           } catch (_) {
             // pas grave, on retentera au prochain lancement
           }
- 
-          final existing = allProfiles.where((p) => p.name == kGfpProfileTitle).firstOrNull;
- 
+
+          final existing = allProfiles
+              .where(
+                (profile) =>
+                    profile.map(remote: (profile) => profile.name, local: (profile) => profile.name) ==
+                    kGfpProfileTitle,
+              )
+              .firstOrNull;
+
           if (existing == null) {
             gfpStatus.value = 'fetching';
             final cached = await service.loadLastKnownGood();
-            final content = cached ?? await service.refresh(
-              onProgress: (done, total) => gfpStatus.value = 'test $done/$total',
-            );
+            final content = cached ?? await _refreshForCurrentNetwork(service, gfpStatus);
             gfpStatus.value = 'adding profile';
             final result = await repo.addLocal(content).run();
-            result.match(
-              (failure) => gfpError.value = 'addLocal a échoué: $failure',
-              (_) => gfpStatus.value = 'done',
+            await result.match(
+              (failure) => Future<void>.value(gfpError.value = 'addLocal a échoué: $failure'),
+              (_) async {
+                if (cached == null) await service.saveValidatedCache(content);
+                gfpStatus.value = 'done';
+              },
             );
           } else {
             final fresh = await service.loadFreshCache();
             if (fresh == null) {
               gfpStatus.value = 'refreshing';
-              service.refresh().then((content) {
-                repo.offlineUpdate(existing, content).run();
-              });
+              unawaited(_updateExistingProfile(repo, existing, service, gfpStatus));
             }
             gfpStatus.value = 'done (existing)';
           }
@@ -78,11 +87,11 @@ class HomePage extends HookConsumerWidget {
           debugPrint('sodlab gfp error: $e\n$st');
         }
       }
- 
+
       run();
       return null;
-    }, [hasAnyProfile.value]);
- 
+    }, const []);
+
     return Scaffold(
       appBar: AppBar(
         // leading: (RootScaffold.stateKey.currentState?.hasDrawer ?? false) && showDrawerButton(context)
@@ -148,90 +157,84 @@ class HomePage extends HookConsumerWidget {
               width: double.infinity,
               color: Colors.red.shade900,
               padding: const EdgeInsets.all(8),
-              child: Text(
-                'sodlab debug: ${gfpError.value}',
-                style: const TextStyle(color: Colors.white, fontSize: 11),
-              ),
+              child: Text('sodlab debug: ${gfpError.value}', style: const TextStyle(color: Colors.white, fontSize: 11)),
             )
           else if (gfpStatus.value != 'done' && gfpStatus.value != 'done (existing)')
             Container(
               width: double.infinity,
               color: Colors.blue.shade900,
               padding: const EdgeInsets.all(6),
-              child: Text(
-                'sodlab: ${gfpStatus.value}',
-                style: const TextStyle(color: Colors.white, fontSize: 11),
-              ),
+              child: Text('sodlab: ${gfpStatus.value}', style: const TextStyle(color: Colors.white, fontSize: 11)),
             ),
           Expanded(
             child: Container(
-        decoration: BoxDecoration(
-          image: DecorationImage(
-            image: const AssetImage('assets/images/world_map.png'), // Replace with your image path
-            fit: BoxFit.cover,
-            opacity: 0.09,
-            colorFilter: theme.brightness == Brightness.dark
-                ? ColorFilter.mode(Colors.white.withValues(alpha: .15), BlendMode.srcIn) //
-                : ColorFilter.mode(
-                    Colors.grey.withValues(alpha: 1),
-                    BlendMode.srcATop,
-                  ), // Apply white tint in dark mode
-          ),
-        ),
-        child: Stack(
-          alignment: Alignment.center,
-          children: [
-            Center(
-              child: ConstrainedBox(
-                constraints: const BoxConstraints(
-                  maxWidth: 600, // Set the maximum width here
-                ),
-                child: CustomScrollView(
-                  slivers: [
-                    // switch (activeProfile) {
-                    // AsyncData(value: final profile?) =>
-                    MultiSliver(
-                      children: [
-                        // const Gap(100),
-                        switch (activeProfile) {
-                          AsyncData(value: final profile?) => ProfileTile(
-                            profile: profile,
-                            isMain: true,
-                            margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                          ),
-                          _ => const Text(""),
-                        },
-                        const SliverFillRemaining(
-                          hasScrollBody: false,
-                          child: Column(
-                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                            children: [
-                              Expanded(
-                                child: Column(
-                                  mainAxisSize: MainAxisSize.min,
-                                  mainAxisAlignment: MainAxisAlignment.center,
-                                  children: [ConnectionButton(), ActiveProxyDelayIndicator()],
-                                ),
-                              ),
-                              ActiveProxyFooter(),
-                            ],
-                          ),
-                        ),
-                      ],
-                    ),
-                    // AsyncData() => switch (hasAnyProfile) {
-                    //     AsyncData(value: true) => const EmptyActiveProfileHomeBody(),
-                    //     _ => const EmptyProfilesHomeBody(),
-                    //   },
-                    // AsyncError(:final error) => SliverErrorBodyPlaceholder(t.presentShortError(error)),
-                    // _ => const SliverToBoxAdapter(),
-                    // },
-                  ],
+              decoration: BoxDecoration(
+                image: DecorationImage(
+                  image: const AssetImage('assets/images/world_map.png'), // Replace with your image path
+                  fit: BoxFit.cover,
+                  opacity: 0.09,
+                  colorFilter: theme.brightness == Brightness.dark
+                      ? ColorFilter.mode(Colors.white.withValues(alpha: .15), BlendMode.srcIn) //
+                      : ColorFilter.mode(
+                          Colors.grey.withValues(alpha: 1),
+                          BlendMode.srcATop,
+                        ), // Apply white tint in dark mode
                 ),
               ),
-            ),
-          ],
-        ),
+              child: Stack(
+                alignment: Alignment.center,
+                children: [
+                  Center(
+                    child: ConstrainedBox(
+                      constraints: const BoxConstraints(
+                        maxWidth: 600, // Set the maximum width here
+                      ),
+                      child: CustomScrollView(
+                        slivers: [
+                          // switch (activeProfile) {
+                          // AsyncData(value: final profile?) =>
+                          MultiSliver(
+                            children: [
+                              // const Gap(100),
+                              switch (activeProfile) {
+                                AsyncData(value: final profile?) => ProfileTile(
+                                  profile: profile,
+                                  isMain: true,
+                                  margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                                ),
+                                _ => const Text(""),
+                              },
+                              const SliverFillRemaining(
+                                hasScrollBody: false,
+                                child: Column(
+                                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                  children: [
+                                    Expanded(
+                                      child: Column(
+                                        mainAxisSize: MainAxisSize.min,
+                                        mainAxisAlignment: MainAxisAlignment.center,
+                                        children: [ConnectionButton(), ActiveProxyDelayIndicator()],
+                                      ),
+                                    ),
+                                    ActiveProxyFooter(),
+                                  ],
+                                ),
+                              ),
+                            ],
+                          ),
+                          // AsyncData() => switch (hasAnyProfile) {
+                          //     AsyncData(value: true) => const EmptyActiveProfileHomeBody(),
+                          //     _ => const EmptyProfilesHomeBody(),
+                          //   },
+                          // AsyncError(:final error) => SliverErrorBodyPlaceholder(t.presentShortError(error)),
+                          // _ => const SliverToBoxAdapter(),
+                          // },
+                        ],
+                      ),
+                    ),
+                  ),
+                ],
+              ),
             ),
           ),
         ],
@@ -239,18 +242,48 @@ class HomePage extends HookConsumerWidget {
     );
   }
 }
- 
+
+Future<String> _refreshForCurrentNetwork(GfpProxyService service, ValueNotifier<String> status) async {
+  final networks = await Connectivity().checkConnectivity();
+  final onWifi = networks.contains(ConnectivityResult.wifi) || networks.contains(ConnectivityResult.ethernet);
+
+  // Les bornes évitent les pics de mémoire/file-descriptors qui faisaient
+  // tomber le service Android avec des centaines d'outbounds. Elles restent
+  // plus généreuses en Wi-Fi, sans faire de scan sans limite sur le téléphone.
+  return service.refresh(
+    maxCandidatesToTest: onWifi ? 96 : 32,
+    concurrency: onWifi ? 6 : 3,
+    maxFinal: onWifi ? 12 : 8,
+    onProgress: (done, total) => status.value = 'test $done/$total',
+  );
+}
+
+Future<void> _updateExistingProfile(
+  ProfileRepository repo,
+  ProfileEntity profile,
+  GfpProxyService service,
+  ValueNotifier<String> status,
+) async {
+  try {
+    final content = await _refreshForCurrentNetwork(service, status);
+    final result = await repo.offlineUpdate(profile, content).run();
+    await result.match((_) => Future<void>.value(), (_) => service.saveValidatedCache(content));
+  } catch (_) {
+    // Le profil précédent et validé reste disponible hors-ligne.
+  }
+}
+
 class AppVersionLabel extends HookConsumerWidget {
   const AppVersionLabel({super.key});
- 
+
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final t = ref.watch(translationsProvider).requireValue;
     final theme = Theme.of(context);
- 
+
     final version = ref.watch(appInfoProvider).requireValue.presentVersion;
     if (version.isBlank) return const SizedBox();
- 
+
     return Semantics(
       label: t.common.version,
       button: false,
