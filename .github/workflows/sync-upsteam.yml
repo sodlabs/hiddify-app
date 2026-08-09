@@ -1,0 +1,58 @@
+name: Sync with upstream hiddify-app
+
+on:
+  schedule:
+    - cron: '0 4 * * *' # tous les jours à 4h UTC
+  workflow_dispatch: {} # bouton "Run workflow" manuel dans l'onglet Actions
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout fork
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Configurer git
+        run: |
+          git config user.name "sync-bot"
+          git config user.email "sync-bot@users.noreply.github.com"
+
+      - name: Ajouter le remote upstream
+        run: |
+          git remote add upstream https://github.com/hiddify/hiddify-app.git || true
+          git fetch upstream main
+
+      - name: Tenter un merge fast-forward/clean
+        id: merge
+        run: |
+          set +e
+          git checkout main
+          git merge upstream/main --no-edit
+          echo "merge_exit=$?" >> "$GITHUB_OUTPUT"
+
+      - name: Push si le merge est propre
+        if: steps.merge.outputs.merge_exit == '0'
+        run: git push origin main
+
+      - name: Ouvrir une PR si conflit (merge manuel requis)
+        if: steps.merge.outputs.merge_exit != '0'
+        run: |
+          git merge --abort || true
+          git checkout -b sync/upstream-$(date +%Y%m%d)
+          git merge upstream/main --no-edit || true
+          git add -A
+          git commit -m "sync: merge upstream (conflits à résoudre)" || true
+          git push origin HEAD
+          gh pr create \
+            --title "Sync upstream $(date +%Y-%m-%d) - conflits a resoudre" \
+            --body "Le merge automatique a échoué (probablement conflit avec le branding/warning banner). A review et merger manuellement." \
+            --base main
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}

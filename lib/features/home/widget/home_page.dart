@@ -1,10 +1,14 @@
 import 'package:dartx/dartx.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_hooks/flutter_hooks.dart';
 import 'package:gap/gap.dart';
 import 'package:hiddify/core/app_info/app_info_provider.dart';
 import 'package:hiddify/core/localization/translations.dart';
 import 'package:hiddify/core/router/bottom_sheets/bottom_sheets_notifier.dart';
+import 'package:hiddify/features/gfp/gfp_proxy_service.dart';
 import 'package:hiddify/features/home/widget/connection_button.dart';
+import 'package:hiddify/features/home/widget/third_party_warning_banner.dart';
+import 'package:hiddify/features/profile/data/profile_data_providers.dart';
 import 'package:hiddify/features/profile/notifier/active_profile_notifier.dart';
 import 'package:hiddify/features/profile/widget/profile_tile.dart';
 import 'package:hiddify/features/proxy/active/active_proxy_card.dart';
@@ -22,6 +26,50 @@ class HomePage extends HookConsumerWidget {
     final t = ref.watch(translationsProvider).requireValue;
     // final hasAnyProfile = ref.watch(hasAnyProfileProvider);
     final activeProfile = ref.watch(activeProfileProvider);
+    final hasAnyProfile = ref.watch(hasAnyProfileProvider);
+
+    // 100% client-side: on ne pointe plus vers une URL de subscription
+    // hébergée par nous. L'app fetch/teste elle-même les listes publiques
+    // gfpcom, en local. Ne se déclenche qu'une fois grâce à la dep sur
+    // hasAnyProfile.value; une fois un profil "sodlab" créé, ce useEffect
+    // ne fait plus rien tant qu'aucun refresh explicite n'est demandé.
+    useEffect(() {
+      Future<void> run() async {
+        final repo = await ref.read(profileRepositoryProvider.future);
+        final service = GfpProxyService();
+
+        List<dynamic> allProfiles = [];
+        try {
+          final either = await repo.watchAll().first;
+          allProfiles = either.getOrElse((_) => []);
+        } catch (_) {
+          // pas grave, on retentera au prochain lancement
+        }
+
+        final existing = allProfiles.where((p) => p.name == kGfpProfileTitle).firstOrNull;
+
+        if (existing == null) {
+          // Premier lancement: contenu en cache s'il existe (rapide),
+          // sinon on fait un premier fetch+test complet.
+          final cached = await service.loadLastKnownGood();
+          final content = cached ?? await service.refresh();
+          await repo.addLocal(content).run();
+        } else {
+          // Un profil existe déjà: on ne rafraîchit que si le cache est
+          // périmé, en tâche de fond, sans bloquer l'UI ni recréer de
+          // doublon (offlineUpdate met à jour le profil existant).
+          final fresh = await service.loadFreshCache();
+          if (fresh == null) {
+            service.refresh().then((content) {
+              repo.offlineUpdate(existing, content).run();
+            });
+          }
+        }
+      }
+
+      run();
+      return null;
+    }, [hasAnyProfile.value]);
 
     return Scaffold(
       appBar: AppBar(
@@ -61,6 +109,15 @@ class HomePage extends HookConsumerWidget {
           //           tooltip: t.profile.add.buttonText,
           //         )),
           Semantics(
+            key: const ValueKey("profile_quick_settings"),
+            label: t.pages.home.quickSettings,
+            child: IconButton(
+              icon: Icon(Icons.tune_rounded, color: theme.colorScheme.primary),
+              onPressed: () => ref.read(bottomSheetsNotifierProvider.notifier).showQuickSettings(),
+            ),
+          ),
+          const Gap(8),
+          Semantics(
             key: const ValueKey("profile_add_button"),
             label: t.pages.profiles.add,
             child: IconButton(
@@ -71,7 +128,11 @@ class HomePage extends HookConsumerWidget {
           const Gap(8),
         ],
       ),
-      body: Container(
+      body: Column(
+        children: [
+          const ThirdPartyWarningBanner(),
+          Expanded(
+            child: Container(
         decoration: BoxDecoration(
           image: DecorationImage(
             image: const AssetImage('assets/images/world_map.png'), // Replace with your image path
@@ -105,6 +166,7 @@ class HomePage extends HookConsumerWidget {
                             profile: profile,
                             isMain: true,
                             margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                            color: Theme.of(context).colorScheme.surfaceContainer,
                           ),
                           _ => const Text(""),
                         },
@@ -121,7 +183,6 @@ class HomePage extends HookConsumerWidget {
                                 ),
                               ),
                               ActiveProxyFooter(),
-                              Gap(32),
                             ],
                           ),
                         ),
@@ -138,45 +199,11 @@ class HomePage extends HookConsumerWidget {
                 ),
               ),
             ),
-            if (ref.watch(hasAnyProfileProvider).value ?? false)
-              Positioned(
-                right: 0,
-                left: 0,
-                bottom: 0,
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Material(
-                      color: theme.colorScheme.primaryContainer,
-                      borderRadius: const BorderRadius.only(
-                        topLeft: Radius.circular(16),
-                        topRight: Radius.circular(16),
-                      ),
-                      child: InkWell(
-                        borderRadius: const BorderRadius.only(
-                          topLeft: Radius.circular(16),
-                          topRight: Radius.circular(16),
-                        ),
-                        onTap: () => ref.read(bottomSheetsNotifierProvider.notifier).showQuickSettings(),
-                        child: Container(
-                          height: 32,
-                          padding: const EdgeInsetsDirectional.only(start: 16, end: 8),
-                          child: Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              Text(t.pages.home.quickSettings),
-                              const Gap(4),
-                              const Icon(Icons.arrow_drop_up_rounded, size: 16),
-                            ],
-                          ),
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
           ],
         ),
+            ),
+          ),
+        ],
       ),
     );
   }
