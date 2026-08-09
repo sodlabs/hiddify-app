@@ -16,10 +16,10 @@ import 'package:hiddify/features/proxy/active/active_proxy_delay_indicator.dart'
 import 'package:hiddify/gen/assets.gen.dart';
 import 'package:hooks_riverpod/hooks_riverpod.dart';
 import 'package:sliver_tools/sliver_tools.dart';
-
+ 
 class HomePage extends HookConsumerWidget {
   const HomePage({super.key});
-
+ 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final theme = Theme.of(context);
@@ -27,50 +27,62 @@ class HomePage extends HookConsumerWidget {
     // final hasAnyProfile = ref.watch(hasAnyProfileProvider);
     final activeProfile = ref.watch(activeProfileProvider);
     final hasAnyProfile = ref.watch(hasAnyProfileProvider);
-
+ 
     // 100% client-side: on ne pointe plus vers une URL de subscription
     // hébergée par nous. L'app fetch/teste elle-même les listes publiques
-    // gfpcom, en local. Ne se déclenche qu'une fois grâce à la dep sur
-    // hasAnyProfile.value; une fois un profil "sodlab" créé, ce useEffect
-    // ne fait plus rien tant qu'aucun refresh explicite n'est demandé.
+    // gfpcom, en local.
+    final gfpError = useState<String?>(null);
+    final gfpStatus = useState<String>('idle');
+ 
     useEffect(() {
       Future<void> run() async {
-        final repo = await ref.read(profileRepositoryProvider.future);
-        final service = GfpProxyService();
-
-        List<dynamic> allProfiles = [];
         try {
-          final either = await repo.watchAll().first;
-          allProfiles = either.getOrElse((_) => []);
-        } catch (_) {
-          // pas grave, on retentera au prochain lancement
-        }
-
-        final existing = allProfiles.where((p) => p.name == kGfpProfileTitle).firstOrNull;
-
-        if (existing == null) {
-          // Premier lancement: contenu en cache s'il existe (rapide),
-          // sinon on fait un premier fetch+test complet.
-          final cached = await service.loadLastKnownGood();
-          final content = cached ?? await service.refresh();
-          await repo.addLocal(content).run();
-        } else {
-          // Un profil existe déjà: on ne rafraîchit que si le cache est
-          // périmé, en tâche de fond, sans bloquer l'UI ni recréer de
-          // doublon (offlineUpdate met à jour le profil existant).
-          final fresh = await service.loadFreshCache();
-          if (fresh == null) {
-            service.refresh().then((content) {
-              repo.offlineUpdate(existing, content).run();
-            });
+          gfpStatus.value = 'starting';
+          final repo = await ref.read(profileRepositoryProvider.future);
+          final service = GfpProxyService();
+ 
+          List<dynamic> allProfiles = [];
+          try {
+            final either = await repo.watchAll().first;
+            allProfiles = either.getOrElse((_) => []);
+          } catch (_) {
+            // pas grave, on retentera au prochain lancement
           }
+ 
+          final existing = allProfiles.where((p) => p.name == kGfpProfileTitle).firstOrNull;
+ 
+          if (existing == null) {
+            gfpStatus.value = 'fetching';
+            final cached = await service.loadLastKnownGood();
+            final content = cached ?? await service.refresh(
+              onProgress: (done, total) => gfpStatus.value = 'test $done/$total',
+            );
+            gfpStatus.value = 'adding profile';
+            final result = await repo.addLocal(content).run();
+            result.match(
+              (failure) => gfpError.value = 'addLocal a échoué: $failure',
+              (_) => gfpStatus.value = 'done',
+            );
+          } else {
+            final fresh = await service.loadFreshCache();
+            if (fresh == null) {
+              gfpStatus.value = 'refreshing';
+              service.refresh().then((content) {
+                repo.offlineUpdate(existing, content).run();
+              });
+            }
+            gfpStatus.value = 'done (existing)';
+          }
+        } catch (e, st) {
+          gfpError.value = '$e';
+          debugPrint('sodlab gfp error: $e\n$st');
         }
       }
-
+ 
       run();
       return null;
     }, [hasAnyProfile.value]);
-
+ 
     return Scaffold(
       appBar: AppBar(
         // leading: (RootScaffold.stateKey.currentState?.hasDrawer ?? false) && showDrawerButton(context)
@@ -131,6 +143,26 @@ class HomePage extends HookConsumerWidget {
       body: Column(
         children: [
           const ThirdPartyWarningBanner(),
+          if (gfpError.value != null)
+            Container(
+              width: double.infinity,
+              color: Colors.red.shade900,
+              padding: const EdgeInsets.all(8),
+              child: Text(
+                'sodlab debug: ${gfpError.value}',
+                style: const TextStyle(color: Colors.white, fontSize: 11),
+              ),
+            )
+          else if (gfpStatus.value != 'done' && gfpStatus.value != 'done (existing)')
+            Container(
+              width: double.infinity,
+              color: Colors.blue.shade900,
+              padding: const EdgeInsets.all(6),
+              child: Text(
+                'sodlab: ${gfpStatus.value}',
+                style: const TextStyle(color: Colors.white, fontSize: 11),
+              ),
+            ),
           Expanded(
             child: Container(
         decoration: BoxDecoration(
@@ -166,7 +198,6 @@ class HomePage extends HookConsumerWidget {
                             profile: profile,
                             isMain: true,
                             margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                            color: Theme.of(context).colorScheme.surfaceContainer,
                           ),
                           _ => const Text(""),
                         },
@@ -208,18 +239,18 @@ class HomePage extends HookConsumerWidget {
     );
   }
 }
-
+ 
 class AppVersionLabel extends HookConsumerWidget {
   const AppVersionLabel({super.key});
-
+ 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final t = ref.watch(translationsProvider).requireValue;
     final theme = Theme.of(context);
-
+ 
     final version = ref.watch(appInfoProvider).requireValue.presentVersion;
     if (version.isBlank) return const SizedBox();
-
+ 
     return Semantics(
       label: t.common.version,
       button: false,
