@@ -105,13 +105,24 @@ class CoreInterfaceMobile extends CoreInterface with InfraLogger {
     // if (!await waitUntilPort(portBack, false, stop)) return const CoreStatus.stopped(alert: CoreAlert.createService);
     if (!await stop()) return const CoreStatus.stopped(alert: CoreAlert.createService);
     _status.clean();
-    await methodChannel.invokeMethod("start", {
+    final serviceStarted = await methodChannel.invokeMethod<bool>("start", {
       "path": path,
       "name": name,
       "grpcPort": portBack,
       "startBg": true,
       "debug": _debug,
     });
+
+    if (serviceStarted != true) {
+      try {
+        final status = await _status.get(timeout: const Duration(milliseconds: 500));
+        if (status case CoreStopped(alert: final alert?) when alert != null) return status;
+      } on TimeoutException {
+        // The Android activity posts an alert on refusal. Keep a safe fallback
+        // if it has not reached the event channel yet.
+      }
+      return const CoreStatus.stopped(alert: CoreAlert.requestVPNPermission);
+    }
 
     _isBgClientAvailable = true;
     loggy.info("Waiting for starting core");

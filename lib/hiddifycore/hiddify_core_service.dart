@@ -186,6 +186,9 @@ class HiddifyCoreService with InfraLogger {
         final failureMessage = await _backgroundStartFailureMessage(e);
         loggy.error("failed to start bg core: $e; diagnostic: $failureMessage");
         ref.read(coreRestartSignalProvider.notifier).restart();
+        if (_isVpnPermissionFailure(failureMessage)) {
+          return left(ConnectionFailure.missingVpnPermission(failureMessage));
+        }
         if (e.code == StatusCode.unavailable) {
           return left(ConnectionFailure.unexpected(failureMessage));
         }
@@ -216,6 +219,13 @@ class HiddifyCoreService with InfraLogger {
 
     if (details.isEmpty) return "failed to start background core";
     return "failed to start background core: ${details.join("\n")}";
+  }
+
+  bool _isVpnPermissionFailure(String message) {
+    final value = message.toLowerCase();
+    return value.contains("missing vpn permission") ||
+        value.contains("application is not prepared or is revoked") ||
+        (value.contains("inbound/tun") && value.contains("permission denied"));
   }
 
   TaskEither<String, Unit> stop() {

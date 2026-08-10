@@ -130,8 +130,7 @@ class MethodHandler(private val scope: CoroutineScope) : FlutterPlugin,
 //                        }
                         Settings.startCoreAfterStartingService = false
 
-                        mainActivity.startService()
-                        success(true)
+                        success(mainActivity.startService())
                     }
                 }
             }
