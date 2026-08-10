@@ -2,10 +2,11 @@ import 'dart:convert';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:hiddify/features/gfp/gfp_proxy_parser.dart';
+import 'package:hiddify/features/gfp/gfp_proxy_service.dart';
 
 void main() {
   const reality =
-      'vless://11111111-1111-1111-1111-111111111111@reality.example:443?security=reality&sni=cdn.example#reality';
+      'vless://11111111-1111-1111-1111-111111111111@reality.example:443?security=reality&sni=cdn.example&pbk=public-key#reality';
   const tls = 'vless://22222222-2222-2222-2222-222222222222@tls.example:443?security=tls&sni=cdn.example#tls';
 
   test('parses the standard base64 VMess form used by public lists', () {
@@ -27,5 +28,41 @@ void main() {
     expect(candidates, hasLength(1));
     expect(candidates.single.reality, isTrue);
     expect(sortByPriority(parseProxyList('$tls\n$reality')).first.reality, isTrue);
+  });
+
+  test('rejects a Reality URI without its required public key', () {
+    const incomplete =
+        'vless://11111111-1111-1111-1111-111111111111@reality.example:443?security=reality&sni=cdn.example#bad';
+    expect(parseProxyList(incomplete), isEmpty);
+  });
+
+  test('rejects an unsupported VLESS flow before it can crash the core parser', () {
+    const unsupported =
+        'vless://11111111-1111-1111-1111-111111111111@reality.example:443?security=reality&sni=cdn.example&pbk=public-key&flow=xtls-rprx-vision-udp443#bad-flow';
+    expect(parseProxyList(unsupported), isEmpty);
+  });
+
+  test('spreads selected endpoints across hosts before taking a second port', () {
+    final candidates = parseProxyList('''
+$reality
+vless://11111111-1111-1111-1111-111111111111@reality.example:8443?security=reality&sni=cdn.example&pbk=other-key#same-host
+vless://33333333-3333-3333-3333-333333333333@other.example:443?security=reality&sni=cdn.example&pbk=third-key#other-host
+''');
+
+    final selected = selectDiverseCandidates(candidates, limit: 2);
+
+    expect(selected.map((candidate) => candidate.host).toSet(), hasLength(2));
+  });
+
+  test('reserves fallback protocols when Reality candidates fill the list', () {
+    final candidates = parseProxyList('''
+$reality
+vless://11111111-1111-1111-1111-111111111111@reality-two.example:443?security=reality&sni=cdn.example&pbk=other-key#reality-two
+trojan://password@trojan.example:443?sni=cdn.example#trojan
+''');
+
+    final selected = selectDiverseCandidates(candidates, limit: 3);
+
+    expect(selected.any((candidate) => candidate.scheme == 'trojan'), isTrue);
   });
 }

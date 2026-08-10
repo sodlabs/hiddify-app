@@ -67,13 +67,12 @@ class HomePage extends HookConsumerWidget {
             final content = cached ?? await _refreshForCurrentNetwork(service, gfpStatus);
             gfpStatus.value = 'adding profile';
             final result = await repo.addLocal(content).run();
-            await result.match(
-              (failure) => Future<void>.value(gfpError.value = 'addLocal a échoué: $failure'),
-              (_) async {
-                if (cached == null) await service.saveValidatedCache(content);
-                gfpStatus.value = 'done';
-              },
-            );
+            await result.match((failure) => Future<void>.value(gfpError.value = 'addLocal a échoué: $failure'), (
+              _,
+            ) async {
+              if (cached == null) await service.saveValidatedCache(content);
+              gfpStatus.value = 'done';
+            });
           } else {
             final fresh = await service.loadFreshCache();
             if (fresh == null) {
@@ -251,9 +250,9 @@ Future<String> _refreshForCurrentNetwork(GfpProxyService service, ValueNotifier<
   // tomber le service Android avec des centaines d'outbounds. Elles restent
   // plus généreuses en Wi-Fi, sans faire de scan sans limite sur le téléphone.
   return service.refresh(
-    maxCandidatesToTest: onWifi ? 96 : 32,
-    concurrency: onWifi ? 6 : 3,
-    maxFinal: onWifi ? 12 : 8,
+    maxCandidatesToTest: onWifi ? 400 : 120,
+    concurrency: onWifi ? 16 : 6,
+    maxFinal: onWifi ? 200 : 60,
     onProgress: (done, total) => status.value = 'test $done/$total',
   );
 }

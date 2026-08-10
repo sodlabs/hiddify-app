@@ -52,6 +52,24 @@ bool _isReality(Uri uri) {
   return (uri.queryParameters['security'] ?? '').toLowerCase() == 'reality';
 }
 
+/// Reality requires both the server name used by the TLS camouflage and the
+/// server public key. A TCP port can be open without either value being valid;
+/// keeping such a URI only creates a guaranteed timeout later in the core.
+bool _hasCompleteRealityParameters(Uri uri) {
+  final serverName = (uri.queryParameters['sni'] ?? uri.queryParameters['serverName'] ?? '').trim();
+  final publicKey = (uri.queryParameters['pbk'] ?? uri.queryParameters['publicKey'] ?? '').trim();
+  return serverName.isNotEmpty && publicKey.isNotEmpty;
+}
+
+/// sing-box accepts only the Vision flow name in the Hiddify core version
+/// bundled by this app. Public lists also contain experimental flow names;
+/// forwarding one of them makes the native parser panic and rejects the
+/// entire profile, so reject it before creating the local subscription.
+bool _hasSupportedVlessFlow(Uri uri) {
+  final flow = (uri.queryParameters['flow'] ?? '').trim().toLowerCase();
+  return flow.isEmpty || flow == 'xtls-rprx-vision';
+}
+
 String _extractLabel(Uri uri) {
   if (uri.fragment.isEmpty) return '';
   try {
@@ -91,6 +109,8 @@ List<GfpProxyCandidate> parseProxyList(String rawText, {bool realityOnly = false
 
     final reality = scheme == 'vless' && _isReality(uri);
     if (realityOnly && !reality) continue;
+    if (reality && !_hasCompleteRealityParameters(uri)) continue;
+    if (scheme == 'vless' && !_hasSupportedVlessFlow(uri)) continue;
 
     final dedupKey = '$scheme|$host|$port';
     if (seen.contains(dedupKey)) continue;

@@ -42,7 +42,7 @@ Future<GfpTestResult> testCandidate(
   var requiresStandardTls = candidate.scheme == 'trojan';
   try {
     final uri = Uri.parse(candidate.raw);
-    final value = uri.queryParameters['sni'];
+    final value = uri.queryParameters['sni'] ?? uri.queryParameters['serverName'];
     if (value != null && value.isNotEmpty) sni = value;
     requiresStandardTls =
         requiresStandardTls ||
@@ -52,6 +52,9 @@ Future<GfpTestResult> testCandidate(
   } catch (_) {
     sni = null;
   }
+  // Keep the proven Node behaviour: a Reality server with a declared SNI
+  // must complete the camouflage TLS handshake, not merely accept TCP.
+  requiresStandardTls = sni != null;
 
   if (!requiresStandardTls) {
     // Reality n'est pas un serveur TLS classique : lui envoyer un ClientHello
@@ -67,8 +70,8 @@ Future<GfpTestResult> testCandidate(
   // net.isIP() côté Node -- ici InternetAddress.tryParse()). L'API Dart
   // exige un nom d'hôte non nul : sans SNI valide, le TCP reste le test
   // léger sûr plutôt qu'un ClientHello incorrect ou un crash.
-  final sniIsIp = sni != null && InternetAddress.tryParse(sni) != null;
-  if (sni == null || sniIsIp) {
+  final validatedSni = sni;
+  if (InternetAddress.tryParse(validatedSni) != null) {
     final latency = DateTime.now().difference(start).inMilliseconds;
     socket.destroy();
     return GfpTestResult(reachable: true, latencyMs: latency, stage: 'tcp');
@@ -77,7 +80,7 @@ Future<GfpTestResult> testCandidate(
   try {
     final secure = await SecureSocket.secure(
       socket,
-      host: sni,
+      host: validatedSni,
       onBadCertificate: (cert) => true, // on veut juste voir si TLS répond
     ).timeout(timeout);
     final latency = DateTime.now().difference(start).inMilliseconds;
