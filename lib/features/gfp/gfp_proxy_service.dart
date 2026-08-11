@@ -9,6 +9,7 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:math';
+import 'dart:typed_data';
 
 import 'package:dio/dio.dart';
 import 'package:hiddify/features/gfp/gfp_proxy_models.dart';
@@ -21,11 +22,11 @@ import 'package:shared_preferences/shared_preferences.dart';
 /// Ne pas changer sans mettre à jour les deux usages ensemble.
 const String kGfpProfileTitle = 'sodlab (auto, non verifie)';
 
-// V5 invalidates the former narrow, first-host-only selection. Existing
+// V7 invalidates the previous source set and selection policy. Existing
 // user profiles are refreshed in place; no profile or unrelated preference
 // is deleted.
-const _cacheKeyContent = 'gfp_subscription_content_v5';
-const _cacheKeyTimestamp = 'gfp_subscription_timestamp_v5';
+const _cacheKeyContent = 'gfp_subscription_content_v7';
+const _cacheKeyTimestamp = 'gfp_subscription_timestamp_v7';
 
 class GfpNoReachableProxyException implements Exception {
   const GfpNoReachableProxyException();
@@ -35,10 +36,24 @@ class GfpNoReachableProxyException implements Exception {
 }
 
 const Map<String, String> _sources = {
+  // Maintained multi-protocol public aggregate. Keeping it first preserves
+  // viable VMess/Trojan/Shadowsocks fallbacks when Reality feeds are stale.
+  'multi-protocol': 'https://raw.githubusercontent.com/mahdibland/V2RayAggregator/master/sub/sub_merge.txt',
   'vless': 'https://raw.githubusercontent.com/wiki/gfpcom/free-proxy-list/lists/vless.txt',
   'vmess': 'https://raw.githubusercontent.com/wiki/gfpcom/free-proxy-list/lists/vmess.txt',
   'trojan': 'https://raw.githubusercontent.com/wiki/gfpcom/free-proxy-list/lists/trojan.txt',
+  // Publicly published, protocol-validated feed. It is base64-encoded V2Ray
+  // text, hence the dedicated decoding branch below. It remains an untrusted
+  // third-party source and is still checked on the user's own network.
+  'verified-v2ray': 'https://raw.githubusercontent.com/Au1rxx/free-vpn-subscriptions/main/output/v2ray-base64.txt',
 };
+
+const _base64Sources = {'verified-v2ray'};
+
+// This aggregate already publishes an ordered, curated merge. Unlike the
+// very large GFP dumps, its first entries must not be displaced by reservoir
+// sampling before the user's own core can verify them.
+const _orderedPrefixSources = {'multi-protocol'};
 
 class GfpProxyService {
   GfpProxyService({Dio? dio})
@@ -100,7 +115,14 @@ class GfpProxyService {
     // candidats : aucune liste complète n'est stockée en mémoire du téléphone.
     final perSourceLimit = maxCandidatesToTest * 2;
     final lists = await Future.wait(
-      _sources.values.map((url) => _readCandidatePrefix(url, maxCandidates: perSourceLimit)),
+      _sources.entries.map(
+        (entry) => _readCandidatePrefix(
+          entry.value,
+          maxCandidates: perSourceLimit,
+          base64Encoded: _base64Sources.contains(entry.key),
+          reservoirSample: !_orderedPrefixSources.contains(entry.key),
+        ),
+      ),
     );
     final deduplicated = <String, GfpProxyCandidate>{};
     for (final candidate in lists.expand((list) => list)) {
@@ -110,11 +132,14 @@ class GfpProxyService {
 
     final tested = await testAll(all, concurrency: concurrency, timeout: testTimeout, onProgress: onProgress);
 
-    final reachable = selectDiverseCandidates(tested.where((c) => c.reachable), limit: maxFinal);
+    // TCP/TLS is only an ordering hint. It cannot prove a VLESS Reality
+    // handshake or sustained proxied traffic, so it must not discard a
+    // candidate before the local sing-box core has tested the real protocol.
+    final selected = selectDiverseCandidates(tested, limit: maxFinal);
 
-    if (reachable.isEmpty) throw const GfpNoReachableProxyException();
+    if (selected.isEmpty) throw const GfpNoReachableProxyException();
 
-    final content = _buildSubscriptionContent(reachable);
+    final content = _buildSubscriptionContent(selected);
     return content;
   }
 
@@ -126,6 +151,8 @@ class GfpProxyService {
   Future<List<GfpProxyCandidate>> _readCandidatePrefix(
     String url, {
     required int maxCandidates,
+    required bool base64Encoded,
+    required bool reservoirSample,
     int maxCharacters = 8 * 1024 * 1024,
   }) async {
     try {
@@ -133,16 +160,56 @@ class GfpProxyService {
       final body = response.data;
       if (response.statusCode != 200 || body == null) return const [];
 
-      // Public lists are grouped by provider. Taking their first entries
-      // repeatedly selected the same expired clusters. Keep a bounded,
-      // reservoir sample across the stream instead: the client sees hosts
-      // from the whole downloaded portion without retaining the raw list.
+      // Public dumps are grouped by provider. For those unranked sources,
+      // keep a bounded reservoir sample across the stream so the client sees
+      // hosts from the whole downloaded portion without retaining raw lists.
+      // Curated ordered sources explicitly opt out above.
       final candidates = <GfpProxyCandidate>[];
       final seen = <String>{};
       final perHost = <String, int>{};
       final random = Random();
       var eligibleCount = 0;
       var charactersRead = 0;
+
+      void consider(GfpProxyCandidate candidate) {
+        final key = '${candidate.scheme}|${candidate.host}|${candidate.port}';
+        final hostKey = candidate.host.toLowerCase();
+        final hostCount = perHost[hostKey] ?? 0;
+        if (!seen.add(key) || hostCount >= 2) return;
+
+        eligibleCount++;
+        if (candidates.length < maxCandidates) {
+          perHost[hostKey] = hostCount + 1;
+          candidates.add(candidate);
+          return;
+        }
+
+        if (!reservoirSample) return;
+
+        final replacement = random.nextInt(eligibleCount);
+        if (replacement < maxCandidates) {
+          final previous = candidates[replacement];
+          final previousHost = previous.host.toLowerCase();
+          perHost[previousHost] = (perHost[previousHost] ?? 1) - 1;
+          perHost[hostKey] = hostCount + 1;
+          candidates[replacement] = candidate;
+        }
+      }
+
+      if (base64Encoded) {
+        final encoded = BytesBuilder(copy: false);
+        await for (final bytes in body.stream) {
+          charactersRead += bytes.length;
+          if (charactersRead > maxCharacters) break;
+          encoded.add(bytes);
+        }
+        final text = utf8.decode(base64Decode(base64.normalize(utf8.decode(encoded.takeBytes()))));
+        for (final candidate in parseProxyList(text)) {
+          consider(candidate);
+        }
+        return candidates;
+      }
+
       await for (final line
           in body.stream.map<List<int>>((bytes) => bytes).transform(utf8.decoder).transform(const LineSplitter())) {
         charactersRead += line.length + 1;
@@ -151,26 +218,7 @@ class GfpProxyService {
         // Cette API parse aussi le format vmess://base64 et conserve l'URI
         // brute pour le parseur complet du core.
         for (final candidate in parseProxyList(line)) {
-          final key = '${candidate.scheme}|${candidate.host}|${candidate.port}';
-          final hostKey = candidate.host.toLowerCase();
-          final hostCount = perHost[hostKey] ?? 0;
-          if (!seen.add(key) || hostCount >= 2) continue;
-
-          eligibleCount++;
-          if (candidates.length < maxCandidates) {
-            perHost[hostKey] = hostCount + 1;
-            candidates.add(candidate);
-            continue;
-          }
-
-          final replacement = random.nextInt(eligibleCount);
-          if (replacement < maxCandidates) {
-            final previous = candidates[replacement];
-            final previousHost = previous.host.toLowerCase();
-            perHost[previousHost] = (perHost[previousHost] ?? 1) - 1;
-            perHost[hostKey] = hostCount + 1;
-            candidates[replacement] = candidate;
-          }
+          consider(candidate);
         }
       }
       return candidates;
@@ -217,13 +265,28 @@ List<GfpProxyCandidate> selectDiverseCandidates(Iterable<GfpProxyCandidate> cand
   }
 
   final reality = sorted.where((candidate) => candidate.reality).toList(growable: false);
-  final fallback = sorted.where((candidate) => !candidate.reality).toList(growable: false);
-  final realityTarget = fallback.isEmpty ? limit : (limit * 3 + 3) ~/ 4;
+  final vless = sorted.where((candidate) => !candidate.reality && candidate.scheme == 'vless').toList(growable: false);
+  final trojan = sorted.where((candidate) => candidate.scheme == 'trojan').toList(growable: false);
+  final vmess = sorted.where((candidate) => candidate.scheme == 'vmess').toList(growable: false);
+  final other = sorted
+      .where((candidate) => !candidate.reality && candidate.scheme != 'vless' && candidate.scheme != 'trojan' && candidate.scheme != 'vmess')
+      .toList(growable: false);
 
-  // Keep Reality first, while reserving one quarter for other supported
-  // protocols. Otherwise a stale Reality batch can starve viable fallbacks.
-  addSpread(reality, realityTarget);
-  addSpread(fallback, limit);
+  // Reality remains the majority, but every supported protocol has a real
+  // reservation. One stale VLESS/Reality source must not crowd out a working
+  // Trojan, VMess or Shadowsocks route from another public source.
+  final tiers = <({List<GfpProxyCandidate> candidates, double share})>[
+    (candidates: reality, share: 0.55),
+    (candidates: vless, share: 0.15),
+    (candidates: trojan, share: 0.15),
+    (candidates: vmess, share: 0.10),
+    (candidates: other, share: 0.05),
+  ];
+  for (final tier in tiers) {
+    if (selected.length == limit) break;
+    final quota = (limit * tier.share).round().clamp(1, limit).toInt();
+    addSpread(tier.candidates, (selected.length + quota).clamp(0, limit).toInt());
+  }
   addSpread(sorted, limit);
   return selected;
 }

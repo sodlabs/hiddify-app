@@ -65,4 +65,27 @@ trojan://password@trojan.example:443?sni=cdn.example#trojan
 
     expect(selected.any((candidate) => candidate.scheme == 'trojan'), isTrue);
   });
+
+  test('keeps a real protocol reserve when a Reality feed dominates', () {
+    final realities = List.generate(
+      30,
+      (index) =>
+          'vless://11111111-1111-1111-1111-111111111111@reality-$index.example:443?security=reality&sni=cdn.example&pbk=key-$index#reality-$index',
+    );
+    final vmessPayload = base64Encode(
+      utf8.encode(jsonEncode({'v': '2', 'ps': 'vmess', 'add': 'vmess.example', 'port': '443'})),
+    );
+    final candidates = parseProxyList('''
+${realities.join('\n')}
+trojan://password@trojan.example:443?sni=cdn.example#trojan
+vmess://$vmessPayload
+ss://method:password@ss.example:443#ss
+''');
+
+    final selected = selectDiverseCandidates(candidates, limit: 20);
+
+    expect(selected.any((candidate) => candidate.scheme == 'trojan'), isTrue);
+    expect(selected.any((candidate) => candidate.scheme == 'vmess'), isTrue);
+    expect(selected.any((candidate) => candidate.scheme == 'ss'), isTrue);
+  });
 }

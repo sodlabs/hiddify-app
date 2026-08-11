@@ -9,6 +9,7 @@ import 'package:hiddify/core/app_info/app_info_provider.dart';
 import 'package:hiddify/core/localization/translations.dart';
 import 'package:hiddify/core/router/bottom_sheets/bottom_sheets_notifier.dart';
 import 'package:hiddify/features/gfp/gfp_proxy_service.dart';
+import 'package:hiddify/features/gfp/gfp_sustained_proxy_validator.dart';
 import 'package:hiddify/features/home/widget/connection_button.dart';
 import 'package:hiddify/features/home/widget/third_party_warning_banner.dart';
 import 'package:hiddify/features/profile/data/profile_data_providers.dart';
@@ -18,7 +19,10 @@ import 'package:hiddify/features/profile/notifier/active_profile_notifier.dart';
 import 'package:hiddify/features/profile/widget/profile_tile.dart';
 import 'package:hiddify/features/proxy/active/active_proxy_card.dart';
 import 'package:hiddify/features/proxy/active/active_proxy_delay_indicator.dart';
+import 'package:hiddify/features/settings/data/config_option_repository.dart';
 import 'package:hiddify/gen/assets.gen.dart';
+import 'package:hiddify/hiddifycore/hiddify_core_service_provider.dart';
+import 'package:hiddify/singbox/model/core_status.dart';
 import 'package:hooks_riverpod/hooks_riverpod.dart';
 import 'package:sliver_tools/sliver_tools.dart';
 
@@ -89,6 +93,21 @@ class HomePage extends HookConsumerWidget {
 
       run();
       return null;
+    }, const []);
+
+    // The upstream default selector is a round-robin balancer. With public
+    // lists it can send each new connection to a different, already-dead
+    // endpoint. Once the core starts, keep this auto profile on its local
+    // lowest-delay group instead; the core still performs every handshake and
+    // URL test on the user's own network.
+    useEffect(() {
+      final core = ref.read(hiddifyCoreServiceProvider);
+      final subscription = core.statusController.stream.whereType<CoreStarted>().listen((_) {
+        unawaited(_selectLocalLowestProxy(ref, gfpStatus));
+      });
+      return () {
+        unawaited(subscription.cancel());
+      };
     }, const []);
 
     return Scaffold(
@@ -271,6 +290,41 @@ Future<void> _updateExistingProfile(
     // Le profil précédent et validé reste disponible hors-ligne.
   }
 }
+
+Future<void> _selectLocalLowestProxy(WidgetRef ref, ValueNotifier<String> status) async {
+  final profile = ref.read(activeProfileProvider).valueOrNull;
+  if (profile == null || _profileName(profile) != kGfpProfileTitle) return;
+
+  try {
+    status.value = 'waiting for local protocol tests';
+    // sing-box starts its own URL tests asynchronously. Waiting avoids treating
+    // the initial zero/failed delay values as usable routes.
+    await Future<void>.delayed(const Duration(seconds: 30));
+    final stillActive = ref.read(activeProfileProvider).valueOrNull;
+    if (stillActive == null || _profileName(stillActive) != kGfpProfileTitle) return;
+
+    status.value = 'checking real local transfer';
+    final core = ref.read(hiddifyCoreServiceProvider);
+    final validator = GfpSustainedProxyValidator(mixedPort: ref.read(ConfigOptions.mixedPort));
+    final stableTag = await validator.selectStableOutbound(core);
+    if (stableTag != null) {
+      status.value = 'using locally verified route';
+      return;
+    }
+
+    // If no small transfer succeeds, retain the core's own lowest-delay choice
+    // rather than leaving an arbitrary round-robin endpoint selected.
+    final result = await core.selectOutbound('select', 'lowest').run();
+    result.match((_) => status.value = 'local route selection failed', (_) => status.value = 'using lowest-delay route');
+  } catch (e, st) {
+    // The user may stop the VPN or switch profile during the local check. This
+    // must remain a failed validation, never an uncaught app-level exception.
+    debugPrint('sodlab local route validation error: $e\n$st');
+    status.value = 'local route validation stopped';
+  }
+}
+
+String _profileName(ProfileEntity profile) => profile.map(remote: (profile) => profile.name, local: (profile) => profile.name);
 
 class AppVersionLabel extends HookConsumerWidget {
   const AppVersionLabel({super.key});
