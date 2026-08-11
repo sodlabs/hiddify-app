@@ -102,7 +102,7 @@ class HomePage extends HookConsumerWidget {
     // URL test on the user's own network.
     useEffect(() {
       final core = ref.read(hiddifyCoreServiceProvider);
-      final subscription = core.statusController.stream.whereType<CoreStarted>().listen((_) {
+      final subscription = core.statusController.stream.where((status) => status is CoreStarted).listen((_) {
         unawaited(_selectLocalLowestProxy(ref, gfpStatus));
       });
       return () {
