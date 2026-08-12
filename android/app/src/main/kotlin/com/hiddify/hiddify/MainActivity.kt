@@ -18,6 +18,7 @@ import com.hiddify.hiddify.constant.Status
 import io.flutter.embedding.android.FlutterFragmentActivity
 import io.flutter.embedding.engine.FlutterEngine
 import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.delay
 import java.util.LinkedList
 
 
@@ -42,7 +43,6 @@ class MainActivity : FlutterFragmentActivity(), ServiceConnection.Callback {
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
         instance = this
-        reconnect()
         flutterEngine.plugins.add(MethodHandler(lifecycleScope))
         flutterEngine.plugins.add(PlatformSettingsHandler())
         flutterEngine.plugins.add(EventHandler())
@@ -69,12 +69,16 @@ class MainActivity : FlutterFragmentActivity(), ServiceConnection.Callback {
                 return false
             }
         }
-        if (Settings.rebuildServiceMode()) {
-            connection.reconnect()
-        }
         if (Settings.serviceMode == ServiceMode.VPN && !requestVpnPermission()) {
             onServiceAlert(Alert.RequestVPNPermission, null)
             return false
+        }
+        // Do not even bind VPNService before Android has prepared this app.
+        // Binding it during Flutter startup made the service lifecycle race the
+        // permission activity on some Android releases, leaving establish()
+        // without the grant the user had just accepted.
+        if (Settings.rebuildServiceMode()) {
+            connection.reconnect()
         }
 
         return try {
@@ -94,7 +98,17 @@ class MainActivity : FlutterFragmentActivity(), ServiceConnection.Callback {
             val request = CompletableDeferred<Boolean>()
             vpnPermissionRequest = request
             prepareLauncher.launch(intent)
-            return request.await()
+            if (!request.await()) return false
+
+            // RESULT_OK alone is not enough: OEM Android builds can return it
+            // before the VPN grant is visible to VpnService. Verify the actual
+            // system state before allowing the native core to create TUN.
+            repeat(10) {
+                if (VpnService.prepare(this) == null) return true
+                delay(100)
+            }
+            Log.w(TAG, "VPN dialog returned OK but Android did not prepare this app")
+            return false
         } catch (e: Exception) {
             onServiceAlert(Alert.RequestVPNPermission, e.message)
             return false
