@@ -226,7 +226,7 @@ jobs:
           echo "keyAlias=${{ secrets.ANDROID_SIGNING_KEY_ALIAS }}" >> android/key.properties
 
       - name: Setup Windows Signing Properties
-        if: ${{ inputs.upload-artifact && startsWith(matrix.platform,'windows') }}
+        if: ${{ inputs.upload-artifact && startsWith(matrix.platform,'windows') && vars.WINDOWS_SIGNING_ENABLED == 'true' }}
         run: |
             [IO.File]::WriteAllBytes("windows\sign.pfx", [Convert]::FromBase64String("${{ secrets.WINDOWS_SIGNING_KEY }}"))
             (Get-Content "windows\packaging\msix\make_config.yaml") -replace '^certificate_password:.*$', 'certificate_password: ${{ secrets.WINDOWS_SIGNING_PASSWORD }}' | Set-Content "windows\packaging\msix\make_config.yaml"
@@ -248,13 +248,25 @@ jobs:
 
 
       - name: Build ${{ matrix.platform }}
+        if: matrix.platform != 'windows'
         env:
           SENTRY_DSN: ${{ secrets.SENTRY_DSN }}
         run: |
           make ${{ matrix.platform }}-release
 
+      # An MSIX requires a signing certificate. Build the portable ZIP and
+      # installer independently so missing optional signing secrets never
+      # prevent Android and Windows artifacts from being published.
+      - name: Build Windows portable and installer
+        if: matrix.platform == 'windows'
+        env:
+          SENTRY_DSN: ${{ secrets.SENTRY_DSN }}
+        run: |
+          make windows-zip-release
+          make windows-exe-release
+
       - name: Code Sign
-        if: ${{ inputs.upload-artifact && startsWith(matrix.platform,'windows') }}
+        if: ${{ inputs.upload-artifact && startsWith(matrix.platform,'windows') && vars.WINDOWS_SIGNING_ENABLED == 'true' }}
         uses: hiddify/signtool-code-sign-sha256@main
         with:
           certificate: '${{ secrets.WINDOWS_SIGNING_KEY }}'
