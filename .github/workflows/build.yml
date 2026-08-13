@@ -10,7 +10,10 @@ on:
         default: "draft"
       channel:
         type: string
-        default: "dev"
+        # The stable core release is used for every CI artifact. The rolling
+        # draft core may change its Android JNI API without notice and made
+        # otherwise identical APK jobs compile against incompatible headers.
+        default: "prod"
 
 env:
   IS_GITHUB_ACTIONS: 1

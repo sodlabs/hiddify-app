@@ -11,7 +11,6 @@ import com.hiddify.hiddify.Application
 import com.hiddify.core.libbox.InterfaceUpdateListener
 import com.hiddify.core.libbox.Libbox
 import com.hiddify.core.libbox.NetworkInterfaceIterator
-import com.hiddify.core.libbox.NeighborUpdateListener
 import com.hiddify.core.libbox.PlatformInterface
 import com.hiddify.core.libbox.StringIterator
 import com.hiddify.core.libbox.TunOptions
@@ -64,9 +63,9 @@ interface PlatformInterfaceWrapper : PlatformInterface {
             val owner = ConnectionOwner()
             owner.userId = uid
             if (uid!=Process.INVALID_UID) {
-                val packages = Application.packageManager.getPackagesForUid(uid)?.toList().orEmpty()
-                owner.userName = packages.firstOrNull() ?: ""
-                owner.setAndroidPackageNames(StringArray(packages.iterator()))
+                val packages = Application.packageManager.getPackagesForUid(uid)
+                owner.userName = packages?.firstOrNull() ?: ""
+                owner.androidPackageName = owner.userName
             }
             return owner
         } catch (e: Exception) {
@@ -83,14 +82,6 @@ interface PlatformInterfaceWrapper : PlatformInterface {
     override fun closeDefaultInterfaceMonitor(listener: InterfaceUpdateListener) {
         DefaultNetworkMonitor.setListener(null)
     }
-
-    // The current core exposes neighbor monitoring on every platform. Android
-    // does not have an equivalent public API, so keep it intentionally inert.
-    override fun startNeighborMonitor(listener: NeighborUpdateListener) {}
-
-    override fun closeNeighborMonitor(listener: NeighborUpdateListener) {}
-
-    override fun registerMyInterface(name: String) {}
 
     override fun getInterfaces(): NetworkInterfaceIterator {
         val networks = Application.connectivity.allNetworks
