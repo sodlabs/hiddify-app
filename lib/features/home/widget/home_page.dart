@@ -78,12 +78,15 @@ class HomePage extends HookConsumerWidget {
               gfpStatus.value = 'done';
             });
           } else {
-            final fresh = await service.loadFreshCache();
+            // Never replace a live public-proxy profile behind the user's
+            // back: importing a new list can restart the core and interrupt
+            // an active tunnel. We only surface a recommendation.
+            final fresh = await service.loadFreshCache(maxAge: const Duration(hours: 3, minutes: 30));
             if (fresh == null) {
-              gfpStatus.value = 'refreshing';
-              unawaited(_updateExistingProfile(repo, existing, service, gfpStatus));
+              gfpStatus.value = 'refresh recommended — tap the refresh button';
+            } else {
+              gfpStatus.value = 'done (existing)';
             }
-            gfpStatus.value = 'done (existing)';
           }
         } catch (e, st) {
           gfpError.value = '$e';
@@ -135,6 +138,34 @@ class HomePage extends HookConsumerWidget {
           ],
         ),
         actions: [
+          Semantics(
+            key: const ValueKey("gfp_manual_refresh"),
+            label: 'Find new sodlab proxies',
+            child: IconButton(
+              tooltip: 'Rechercher de nouveaux proxies (peut reconnecter le VPN)',
+              icon: Icon(Icons.refresh_rounded, color: theme.colorScheme.primary),
+              onPressed: () async {
+                final confirmed = await showDialog<bool>(
+                  context: context,
+                  builder: (context) => AlertDialog(
+                    title: const Text('Rechercher de nouveaux proxies ?'),
+                    content: const Text(
+                      'Cette analyse locale approfondie remplace la liste actuelle. '
+                      'Le VPN peut se reconnecter : à lancer lorsque vous n’êtes pas en train de faire quelque chose d’important.',
+                    ),
+                    actions: [
+                      TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Annuler')),
+                      FilledButton(onPressed: () => Navigator.pop(context, true), child: const Text('Actualiser')),
+                    ],
+                  ),
+                );
+                if (confirmed == true) {
+                  await _refreshGfpProfileManually(ref, gfpStatus, gfpError);
+                }
+              },
+            ),
+          ),
+          const Gap(8),
           // IconButton(
           //     onPressed: () => const QuickSettingsRoute().push(context),
           //     icon: const Icon(FluentIcons.options_24_filled),
@@ -261,7 +292,11 @@ class HomePage extends HookConsumerWidget {
   }
 }
 
-Future<String> _refreshForCurrentNetwork(GfpProxyService service, ValueNotifier<String> status) async {
+Future<String> _refreshForCurrentNetwork(
+  GfpProxyService service,
+  ValueNotifier<String> status, {
+  bool deepScan = false,
+}) async {
   final networks = await Connectivity().checkConnectivity();
   final onWifi = networks.contains(ConnectivityResult.wifi) || networks.contains(ConnectivityResult.ethernet);
 
@@ -269,13 +304,56 @@ Future<String> _refreshForCurrentNetwork(GfpProxyService service, ValueNotifier<
   // tomber le service Android avec des centaines d'outbounds. Elles restent
   // plus généreuses en Wi-Fi, sans faire de scan sans limite sur le téléphone.
   return service.refresh(
-    maxCandidatesToTest: onWifi ? 400 : 120,
-    concurrency: onWifi ? 16 : 6,
-    maxFinal: onWifi ? 200 : 60,
+    // A public profile with hundreds of outbounds makes sing-box parse and
+    // URL-test all of them at startup. That is especially costly on Android
+    // and was enough to make some devices kill the app/service. A small,
+    // diverse set is then subjected to the stronger in-core transfer check.
+    maxCandidatesToTest: deepScan ? (onWifi ? 1000 : 240) : (onWifi ? 96 : 48),
+    concurrency: deepScan ? (onWifi ? 12 : 6) : (onWifi ? 8 : 4),
+    maxFinal: deepScan ? 20 : 12,
     onProgress: (done, total) => status.value = 'test $done/$total',
   );
 }
 
+/// Explicit user action only. This may restart the core while the refreshed
+/// profile is imported, hence the confirmation shown by the refresh button.
+Future<void> _refreshGfpProfileManually(
+  WidgetRef ref,
+  ValueNotifier<String> status,
+  ValueNotifier<String?> error,
+) async {
+  try {
+    error.value = null;
+    status.value = 'deep refresh: collecting and testing proxies';
+    final repo = await ref.read(profileRepositoryProvider.future);
+    final profiles = (await repo.watchAll().first).getOrElse((_) => <ProfileEntity>[]);
+    final profile = profiles.where((entry) => _profileName(entry) == kGfpProfileTitle).firstOrNull;
+    if (profile == null) {
+      error.value = 'sodlab profile is not available yet';
+      return;
+    }
+
+    final service = GfpProxyService();
+    final content = await _refreshForCurrentNetwork(service, status, deepScan: true);
+    final result = await repo.offlineUpdate(profile, content).run();
+    await result.match(
+      (failure) {
+        error.value = 'refresh failed: $failure';
+        return Future<void>.value();
+      },
+      (_) async {
+        await service.saveValidatedCache(content);
+        status.value = 'refresh complete — reconnect to validate a route';
+      },
+    );
+  } catch (e, st) {
+    debugPrint('sodlab manual refresh error: $e\n$st');
+    error.value = 'refresh failed: $e';
+  }
+}
+
+// Kept as a recovery helper for future non-disruptive update paths.
+// ignore: unused_element
 Future<void> _updateExistingProfile(
   ProfileRepository repo,
   ProfileEntity profile,
@@ -312,10 +390,10 @@ Future<void> _selectLocalLowestProxy(WidgetRef ref, ValueNotifier<String> status
       return;
     }
 
-    // If no small transfer succeeds, retain the core's own lowest-delay choice
-    // rather than leaving an arbitrary round-robin endpoint selected.
-    final result = await core.selectOutbound('select', 'lowest').run();
-    result.match((_) => status.value = 'local route selection failed', (_) => status.value = 'using lowest-delay route');
+    // Do not mark a route as usable when its full proxied transfer failed.
+    // Retaining the current selection keeps the connection state honest and
+    // avoids promoting another TCP-only false positive.
+    status.value = 'no locally verified route';
   } catch (e, st) {
     // The user may stop the VPN or switch profile during the local check. This
     // must remain a failed validation, never an uncaught app-level exception.
@@ -324,7 +402,8 @@ Future<void> _selectLocalLowestProxy(WidgetRef ref, ValueNotifier<String> status
   }
 }
 
-String _profileName(ProfileEntity profile) => profile.map(remote: (profile) => profile.name, local: (profile) => profile.name);
+String _profileName(ProfileEntity profile) =>
+    profile.map(remote: (profile) => profile.name, local: (profile) => profile.name);
 
 class AppVersionLabel extends HookConsumerWidget {
   const AppVersionLabel({super.key});

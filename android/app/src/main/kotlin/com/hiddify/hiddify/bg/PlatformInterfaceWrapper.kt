@@ -148,17 +148,26 @@ interface PlatformInterfaceWrapper : PlatformInterface {
     }
 
     override fun readWIFIState(): WIFIState? {
-        @Suppress("DEPRECATION")
-        val wifiInfo =
-            Application.wifiManager.connectionInfo ?: return null
-        var ssid = wifiInfo.ssid
-        if (ssid == "<unknown ssid>") {
-            return WIFIState("", "")
+        // This callback is invoked through JNI by the native core. Letting a
+        // SecurityException escape leaves a pending Java exception and makes
+        // ART abort the whole app. Android 16/OEM policy can reject this call
+        // even when Wi-Fi metadata is not essential to the VPN.
+        return try {
+            @Suppress("DEPRECATION")
+            val wifiInfo = Application.wifiManager.connectionInfo ?: return null
+            var ssid = wifiInfo.ssid
+            if (ssid == "<unknown ssid>") {
+                WIFIState("", "")
+            } else {
+                if (ssid.startsWith("\"") && ssid.endsWith("\"")) {
+                    ssid = ssid.substring(1, ssid.length - 1)
+                }
+                WIFIState(ssid, wifiInfo.bssid)
+            }
+        } catch (error: SecurityException) {
+            Log.w("PlatformInterface", "Wi-Fi state unavailable", error)
+            null
         }
-        if (ssid.startsWith("\"") && ssid.endsWith("\"")) {
-            ssid = ssid.substring(1, ssid.length - 1)
-        }
-        return WIFIState(ssid, wifiInfo.bssid)
     }
 
     override fun localDNSTransport(): LocalDNSTransport? = LocalResolver

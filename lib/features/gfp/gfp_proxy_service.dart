@@ -22,11 +22,12 @@ import 'package:shared_preferences/shared_preferences.dart';
 /// Ne pas changer sans mettre à jour les deux usages ensemble.
 const String kGfpProfileTitle = 'sodlab (auto, non verifie)';
 
-// V7 invalidates the previous source set and selection policy. Existing
+// V8 invalidates the previous selection policy, which accidentally retained
+// candidates whose preliminary network test had failed. Existing
 // user profiles are refreshed in place; no profile or unrelated preference
 // is deleted.
-const _cacheKeyContent = 'gfp_subscription_content_v7';
-const _cacheKeyTimestamp = 'gfp_subscription_timestamp_v7';
+const _cacheKeyContent = 'gfp_subscription_content_v8';
+const _cacheKeyTimestamp = 'gfp_subscription_timestamp_v8';
 
 class GfpNoReachableProxyException implements Exception {
   const GfpNoReachableProxyException();
@@ -132,10 +133,12 @@ class GfpProxyService {
 
     final tested = await testAll(all, concurrency: concurrency, timeout: testTimeout, onProgress: onProgress);
 
-    // TCP/TLS is only an ordering hint. It cannot prove a VLESS Reality
-    // handshake or sustained proxied traffic, so it must not discard a
-    // candidate before the local sing-box core has tested the real protocol.
-    final selected = selectDiverseCandidates(tested, limit: maxFinal);
+    // TCP/TLS cannot prove a VLESS Reality handshake or sustained proxied
+    // traffic; that is checked by the local core after import. It *does*,
+    // however, reliably reject endpoints that are unreachable from this
+    // device. Keeping those failed candidates was the direct cause of many
+    // false positives on Windows.
+    final selected = selectDiverseCandidates(tested.where((candidate) => candidate.reachable), limit: maxFinal);
 
     if (selected.isEmpty) throw const GfpNoReachableProxyException();
 
