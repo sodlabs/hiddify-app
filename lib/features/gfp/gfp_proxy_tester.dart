@@ -8,6 +8,7 @@
 // chaque test se fait depuis l'appareil de l'utilisateur final -- c'est
 // tout l'intérêt du passage au 100% client-side.
 
+import 'dart:async';
 import 'dart:io';
 
 import 'package:hiddify/features/gfp/gfp_proxy_models.dart';
@@ -31,9 +32,17 @@ Future<GfpTestResult> testCandidate(
 }) async {
   final start = DateTime.now();
   Socket socket;
+  final connect = Socket.connect(candidate.host, candidate.port);
 
   try {
-    socket = await Socket.connect(candidate.host, candidate.port).timeout(timeout);
+    socket = await connect.timeout(timeout);
+  } on TimeoutException catch (e) {
+    // `Future.timeout` returns to us but does not cancel Socket.connect. On
+    // Android, leaving those late sockets alive exhausts file descriptors
+    // during a large manual scan and makes progress stop after a few dozen
+    // candidates. Dispose the socket if the OS completes it later.
+    unawaited(connect.then((lateSocket) => lateSocket.destroy()).catchError((_) {}));
+    return GfpTestResult(reachable: false, stage: 'tcp', error: e.toString());
   } catch (e) {
     return GfpTestResult(reachable: false, stage: 'tcp', error: e.toString());
   }

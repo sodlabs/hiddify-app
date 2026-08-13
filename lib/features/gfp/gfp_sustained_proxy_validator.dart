@@ -15,7 +15,10 @@ import 'package:hiddify/hiddifycore/hiddify_core_service.dart';
 class GfpSustainedProxyValidator {
   const GfpSustainedProxyValidator({required this.mixedPort, this.maxCandidates = 4});
 
-  static const _minimumBytes = 128 * 1024;
+  // Enough to prove that a route can receive a real response, while staying
+  // practical for public proxies that are usable but deliberately throttled.
+  // The core's URL test and the TCP/TLS preflight already reject dead routes.
+  static const _minimumBytes = 8 * 1024;
   static final _testUrls = <Uri>[
     Uri.parse('https://speed.cloudflare.com/__down?bytes=$_minimumBytes'),
     Uri.parse('https://raw.githubusercontent.com/SagerNet/sing-geosite/rule-set/geosite-category-ads-all.srs'),
