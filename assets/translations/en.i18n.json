@@ -1,6 +1,6 @@
 ﻿{
   "common": {
-    "appTitle": "Hiddify",
+    "appTitle": "Sod",
     "start": "Start",
     "version": "Version",
     "ok": "OK",
@@ -95,14 +95,37 @@
     }
   },
   "intro": {
-    "banner": "All you need for an unrestricted internet",
+    "banner": "A simpler path to the open internet",
     "termsAndPolicyCaution(rich)": "By continuing you agree to ${tap(@:pages.about.termsAndConditions)}",
-    "info(rich)": "Made with ❤️ by Hiddify - ${tap_source(Open Source)} (${tap_license(License)})"
+    "info(rich)": "Built openly from Hiddify - ${tap_source(Source code)} (${tap_license(License)})"
   },
   "pages": {
     "home": {
       "title": "Home",
-      "quickSettings": "Quick setting options"
+      "quickSettings": "Quick settings",
+      "publicNetwork": "Sod public network",
+      "publicNetworkSubtitle": "Automatically selected and tested on this device",
+      "customSourceSubtitle": "Saved custom source",
+      "manageSources": "Change source",
+      "addCustomSource": "Add custom",
+      "refreshAction": "Find new routes",
+      "refreshTitle": "Find new public routes?",
+      "refreshMessage": "This deep local scan replaces the current public list and may reconnect the VPN. Run it when interrupting the connection is safe.",
+      "publicProxyNotice": {
+        "title": "Public routes need extra care",
+        "message": "Public proxies are operated by third parties. Prefer HTTPS and avoid banking, passwords, or confidential data while connected.",
+        "accept": "I understand"
+      },
+      "scan": {
+        "collecting": "Collecting public routes",
+        "testing": "Testing routes",
+        "validating": "Checking real traffic on this device",
+        "ready": "Locally tested route selected",
+        "refreshRecommended": "The public list is old. Refresh when interrupting the VPN is safe.",
+        "refreshComplete": "New routes are ready. Reconnect to validate one.",
+        "noRoute": "No route passed the local traffic test",
+        "failed": "The public network could not be refreshed"
+      }
     },
     "proxies": {
       "title": "Proxies",
@@ -191,6 +214,7 @@
       "telegramChannel": "Telegram channel",
       "termsAndConditions": "Terms and conditions",
       "privacyPolicy": "Privacy policy"
+      ,"openSourceLicenses": "Open-source licenses"
     },
     "settings": {
       "title": "Settings",
@@ -232,6 +256,8 @@
         "memoryLimitMsg": "Enable if you're experiencing out of memory errors or frequent app crashes",
         "debugMode": "Debug mode",
         "debugModeMsg": "Restart the app for applying this change",
+        "showConnectionDetails": "Show connection details",
+        "showConnectionDetailsMsg": "Keep local route-testing status visible after the scan",
         "logLevel": "Log level",
         "connectionTestUrl": "Connection test URL",
         "urlTestInterval": "URL test interval",
