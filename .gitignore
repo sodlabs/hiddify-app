@@ -72,3 +72,8 @@ app.*.map.json
 # Windows Self-Signed for msix
 windows/sign.pfx
 windows/sign.cer
+
+# Local device smoke-test captures and misplaced native test dependencies.
+/phone-*.png
+/phone-*.xml
+/windows/hiddify-core/

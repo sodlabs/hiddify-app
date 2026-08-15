@@ -52,6 +52,21 @@ add_subdirectory(${FLUTTER_MANAGED_DIR})
 # Application build; see runner/CMakeLists.txt.
 add_subdirectory("runner")
 
+# sentry_flutter only links the lightweight native API in this project
+# (SENTRY_BACKEND=none). Declare the dependency before the generated plugin
+# file so FetchContent does not clone the full crashpad/breakpad history and
+# submodules on every clean Windows or CI build.
+if(POLICY CMP0097)
+  cmake_policy(SET CMP0097 NEW)
+endif()
+include(FetchContent)
+FetchContent_Declare(
+  sentry-native
+  GIT_REPOSITORY https://github.com/getsentry/sentry-native
+  GIT_TAG 0.7.20
+  GIT_SHALLOW TRUE
+  GIT_SUBMODULES ""
+)
 
 # Generated plugin build rules, which manage building the plugins and adding
 # them to the application.

@@ -40,78 +40,75 @@ class ActiveProxyFooter extends ConsumerWidget with InfraLogger {
       }
     }
 
-    return Container(
-      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
-      padding: const EdgeInsets.symmetric(vertical: 12),
-      decoration: BoxDecoration(
-        color: theme.colorScheme.background.withOpacity(1),
-        borderRadius: BorderRadius.circular(20),
-        boxShadow: [
-          BoxShadow(color: theme.colorScheme.secondary.withOpacity(.21), blurRadius: 10, offset: const Offset(0, 4)),
-        ],
+    return Material(
+      color: theme.colorScheme.surface,
+      clipBehavior: Clip.antiAlias,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(24),
+        side: BorderSide(color: theme.colorScheme.outlineVariant),
       ),
       child: InkWell(
         onTap: () {
           context.goNamed('proxies');
         },
-        child: Row(
-          children: [
-            InkWell(
-              onTap: () async {
-                await handleUrlTest();
-                await ref.read(dialogNotifierProvider.notifier).showProxyInfo(outboundInfo: activeProxy);
-              },
-              child: Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 8),
-                child: IPCountryFlag(
-                  countryCode: activeProxy.ipinfo.countryCode,
-                  organization: activeProxy.ipinfo.org,
-                  size: 48,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+          child: Row(
+            children: [
+              InkWell(
+                borderRadius: BorderRadius.circular(20),
+                onTap: () async {
+                  await handleUrlTest();
+                  await ref.read(dialogNotifierProvider.notifier).showProxyInfo(outboundInfo: activeProxy);
+                },
+                child: Padding(
+                  padding: const EdgeInsetsDirectional.only(end: 12),
+                  child: IPCountryFlag(
+                    countryCode: activeProxy.ipinfo.countryCode,
+                    organization: activeProxy.ipinfo.org,
+                    size: 40,
+                  ),
                 ),
               ),
-            ),
-            Expanded(
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Semantics(
-                    label: t.pages.proxies.activeProxy,
-                    child: Text(
-                      // getRealOutboundTag(activeProxy),
-                      activeProxy.tagDisplay,
-                      style: theme.textTheme.bodyLarge?.copyWith(fontWeight: FontWeight.bold),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
+              Expanded(
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Semantics(
+                      label: t.pages.proxies.activeProxy,
+                      child: Text(
+                        activeProxy.tagDisplay,
+                        style: theme.textTheme.bodyLarge?.copyWith(fontWeight: FontWeight.w700),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
                     ),
-                  ),
-                  const SizedBox(height: 4),
-                  Row(
-                    children: [
-                      Expanded(
-                        child: activeProxy.ipinfo.ip.isNotEmpty
-                            ? IPText(ip: activeProxy.ipinfo.ip, onLongPress: handleUrlTest, constrained: true)
-                            : UnknownIPText(text: t.pages.proxies.unknownIp, onTap: handleUrlTest, constrained: true),
-                      ),
-                      const SizedBox(width: 8),
-                      Flexible(
-                        child: Text(
-                          activeProxy.type,
-                          style: theme.textTheme.bodySmall?.copyWith(fontWeight: FontWeight.bold),
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
+                    const SizedBox(height: 3),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: activeProxy.ipinfo.ip.isNotEmpty
+                              ? IPText(ip: activeProxy.ipinfo.ip, onLongPress: handleUrlTest, constrained: true)
+                              : UnknownIPText(text: t.pages.proxies.unknownIp, onTap: handleUrlTest, constrained: true),
                         ),
-                      ),
-                    ],
-                  ),
-                ],
+                        const SizedBox(width: 8),
+                        Flexible(
+                          child: Text(
+                            activeProxy.type,
+                            style: theme.textTheme.bodySmall?.copyWith(fontWeight: FontWeight.w600),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
               ),
-            ),
-            const Padding(
-              padding: EdgeInsets.all(16.0),
-              child: Icon(Icons.arrow_forward_ios, color: Colors.blue),
-            ),
-          ],
+              Icon(Icons.chevron_right_rounded, color: theme.colorScheme.onSurfaceVariant),
+            ],
+          ),
         ),
       ),
     );

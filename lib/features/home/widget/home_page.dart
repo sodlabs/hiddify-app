@@ -5,10 +5,11 @@ import 'package:dartx/dartx.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_hooks/flutter_hooks.dart';
 import 'package:gap/gap.dart';
-import 'package:hiddify/core/app_info/app_info_provider.dart';
 import 'package:hiddify/core/localization/translations.dart';
 import 'package:hiddify/core/preferences/general_preferences.dart';
 import 'package:hiddify/core/router/bottom_sheets/bottom_sheets_notifier.dart';
+import 'package:hiddify/features/connection/model/connection_status.dart';
+import 'package:hiddify/features/connection/notifier/connection_notifier.dart';
 import 'package:hiddify/features/gfp/gfp_proxy_service.dart';
 import 'package:hiddify/features/gfp/gfp_sustained_proxy_validator.dart';
 import 'package:hiddify/features/home/widget/connection_button.dart';
@@ -69,12 +70,16 @@ class HomePage extends HookConsumerWidget {
             final content = cached ?? await _refreshForCurrentNetwork(service, gfpStatus);
             gfpStatus.value = 'adding profile';
             final result = await repo.addLocal(content).run();
-            await result.match((failure) => Future<void>.value(gfpError.value = 'addLocal a échoué: $failure'), (
-              _,
-            ) async {
-              if (cached == null) await service.saveValidatedCache(content);
-              gfpStatus.value = 'done';
-            });
+            await result.match(
+              (failure) {
+                gfpError.value = 'addLocal a échoué: $failure';
+                return Future<void>.value();
+              },
+              (_) async {
+                if (cached == null) await service.saveValidatedCache(content);
+                gfpStatus.value = 'done';
+              },
+            );
           } else {
             // Never replace a live public-proxy profile behind the user's
             // back: importing a new list can restart the core and interrupt
@@ -111,88 +116,52 @@ class HomePage extends HookConsumerWidget {
       };
     }, const []);
 
+    Future<void> confirmAndRefresh() async {
+      final confirmed = await showDialog<bool>(
+        context: context,
+        builder: (context) => AlertDialog(
+          title: Text(t.pages.home.refreshTitle),
+          content: Text(t.pages.home.refreshMessage),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(context, false), child: Text(t.common.cancel)),
+            FilledButton(onPressed: () => Navigator.pop(context, true), child: Text(t.common.update)),
+          ],
+        ),
+      );
+      if (confirmed == true) {
+        await _refreshGfpProfileManually(ref, gfpStatus, gfpError);
+      }
+    }
+
     return Scaffold(
       appBar: AppBar(
-        // leading: (RootScaffold.stateKey.currentState?.hasDrawer ?? false) && showDrawerButton(context)
-        //     ? DrawerButton(
-        //         onPressed: () {
-        //           RootScaffold.stateKey.currentState?.openDrawer();
-        //         },
-        //       )
-        //     : null,
+        centerTitle: false,
+        scrolledUnderElevation: 0,
         title: Row(
           children: [
-            Assets.images.logo.svg(height: 24),
-            const Gap(8),
-            Text.rich(
-              TextSpan(
-                children: [
-                  TextSpan(text: t.common.appTitle),
-                  const TextSpan(text: " "),
-                  const WidgetSpan(child: AppVersionLabel(), alignment: PlaceholderAlignment.middle),
-                ],
-              ),
+            Assets.images.logo.svg(height: 22),
+            const Gap(10),
+            Text(
+              t.common.appTitle,
+              style: theme.textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w700, letterSpacing: -.4),
             ),
           ],
         ),
         actions: [
           Semantics(
-            key: const ValueKey("gfp_manual_refresh"),
-            label: t.pages.home.refreshAction,
-            child: IconButton(
-              tooltip: t.pages.home.refreshAction,
-              icon: Icon(Icons.refresh_rounded, color: theme.colorScheme.primary),
-              onPressed: () async {
-                final confirmed = await showDialog<bool>(
-                  context: context,
-                  builder: (context) => AlertDialog(
-                    title: Text(t.pages.home.refreshTitle),
-                    content: Text(t.pages.home.refreshMessage),
-                    actions: [
-                      TextButton(onPressed: () => Navigator.pop(context, false), child: Text(t.common.cancel)),
-                      FilledButton(onPressed: () => Navigator.pop(context, true), child: Text(t.common.update)),
-                    ],
-                  ),
-                );
-                if (confirmed == true) {
-                  await _refreshGfpProfileManually(ref, gfpStatus, gfpError);
-                }
-              },
-            ),
-          ),
-          const Gap(8),
-          // IconButton(
-          //     onPressed: () => const QuickSettingsRoute().push(context),
-          //     icon: const Icon(FluentIcons.options_24_filled),
-          //     material: (context, platform) => MaterialIconButtonData(
-          //           tooltip: t.config.quickSettings,
-          //         )),
-          // IconButton(
-          //     onPressed: () => const AddProfileRoute().push(context),
-          //     icon: const Icon(FluentIcons.add_circle_24_filled),
-          //     material: (context, platform) => MaterialIconButtonData(
-          //           tooltip: t.profile.add.buttonText,
-          //         )),
-          Semantics(
             key: const ValueKey("profile_quick_settings"),
             label: t.pages.home.quickSettings,
             child: IconButton(
-              icon: Icon(Icons.tune_rounded, color: theme.colorScheme.primary),
+              tooltip: t.pages.home.quickSettings,
+              icon: const Icon(Icons.tune_rounded),
               onPressed: () => ref.read(bottomSheetsNotifierProvider.notifier).showQuickSettings(),
             ),
           ),
-          const Gap(8),
+          const Gap(4),
         ],
       ),
-      body: Container(
-        decoration: BoxDecoration(
-          image: DecorationImage(
-            image: const AssetImage('assets/images/world_map.png'),
-            fit: BoxFit.cover,
-            opacity: 0.045,
-            colorFilter: ColorFilter.mode(theme.colorScheme.onSurface, BlendMode.srcIn),
-          ),
-        ),
+      body: ColoredBox(
+        color: theme.colorScheme.surfaceContainerLowest,
         child: Center(
           child: ConstrainedBox(
             constraints: const BoxConstraints(maxWidth: 600),
@@ -213,25 +182,24 @@ class HomePage extends HookConsumerWidget {
                   padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
                   sliver: SliverToBoxAdapter(
                     child: switch (activeProfile) {
-                      AsyncData(value: final profile?) => _SourceCard(profile: profile),
+                      AsyncData(value: final profile?) => _SourceCard(profile: profile, onRefresh: confirmAndRefresh),
                       _ => const SizedBox(height: 72),
                     },
                   ),
                 ),
-                const SliverFillRemaining(
-                  hasScrollBody: false,
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Expanded(
-                        child: Column(
-                          mainAxisSize: MainAxisSize.min,
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [ConnectionButton(), ActiveProxyDelayIndicator()],
-                        ),
-                      ),
-                      ActiveProxyFooter(),
-                    ],
+                const SliverPadding(
+                  // RootScaffold draws its navigation bar over the page body.
+                  // Reserve its height so the active proxy card stays fully
+                  // visible instead of sliding underneath it.
+                  padding: EdgeInsets.fromLTRB(16, 16, 16, 88),
+                  sliver: SliverFillRemaining(
+                    hasScrollBody: false,
+                    child: Column(
+                      children: [
+                        Expanded(child: _ConnectionStage()),
+                        ActiveProxyFooter(),
+                      ],
+                    ),
                   ),
                 ),
               ],
@@ -251,9 +219,10 @@ bool _showGfpStatus(String status, String? error, bool showDetails) {
 }
 
 class _SourceCard extends ConsumerWidget {
-  const _SourceCard({required this.profile});
+  const _SourceCard({required this.profile, required this.onRefresh});
 
   final ProfileEntity profile;
+  final Future<void> Function() onRefresh;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -261,22 +230,27 @@ class _SourceCard extends ConsumerWidget {
     final t = ref.watch(translationsProvider).requireValue;
     final automatic = isGfpProfileName(profile.name);
 
-    return Card(
+    return Material(
+      color: theme.colorScheme.surface,
       clipBehavior: Clip.antiAlias,
       shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(20),
-        side: BorderSide(color: theme.colorScheme.outlineVariant),
+        borderRadius: BorderRadius.circular(24),
+        side: BorderSide(color: theme.colorScheme.outlineVariant.withValues(alpha: .8)),
       ),
       child: Column(
         children: [
           ListTile(
-            minTileHeight: 72,
+            minTileHeight: 84,
+            contentPadding: const EdgeInsets.fromLTRB(18, 8, 12, 8),
             leading: CircleAvatar(
               backgroundColor: theme.colorScheme.primaryContainer,
               foregroundColor: theme.colorScheme.onPrimaryContainer,
-              child: Icon(automatic ? Icons.shield_outlined : Icons.link_rounded),
+              child: Icon(automatic ? Icons.route_outlined : Icons.link_rounded),
             ),
-            title: Text(automatic ? t.pages.home.publicNetwork : profile.name),
+            title: Text(
+              automatic ? t.pages.home.publicNetwork : profile.name,
+              style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700),
+            ),
             subtitle: Text(
               automatic ? t.pages.home.publicNetworkSubtitle : t.pages.home.customSourceSubtitle,
               maxLines: 2,
@@ -285,29 +259,99 @@ class _SourceCard extends ConsumerWidget {
             trailing: const Icon(Icons.chevron_right_rounded),
             onTap: () => ref.read(bottomSheetsNotifierProvider.notifier).showProfilesOverview(),
           ),
-          Divider(height: 1, color: theme.colorScheme.outlineVariant),
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-            child: Row(
-              children: [
-                Expanded(
-                  child: TextButton.icon(
-                    onPressed: () => ref.read(bottomSheetsNotifierProvider.notifier).showProfilesOverview(),
-                    icon: const Icon(Icons.swap_horiz_rounded),
-                    label: Text(t.pages.home.manageSources),
-                  ),
+          Divider(height: 1, indent: 16, endIndent: 16, color: theme.colorScheme.outlineVariant),
+          Row(
+            children: [
+              Expanded(
+                child: _SourceAction(
+                  icon: Icons.swap_horiz_rounded,
+                  label: t.pages.home.manageSources,
+                  onTap: () => ref.read(bottomSheetsNotifierProvider.notifier).showProfilesOverview(),
                 ),
-                Expanded(
-                  child: TextButton.icon(
-                    onPressed: () => ref.read(bottomSheetsNotifierProvider.notifier).showAddProfile(),
-                    icon: const Icon(Icons.add_link_rounded),
-                    label: Text(t.pages.home.addCustomSource),
-                  ),
+              ),
+              Expanded(
+                child: _SourceAction(
+                  icon: Icons.add_link_rounded,
+                  label: t.pages.home.addCustomSource,
+                  onTap: () => ref.read(bottomSheetsNotifierProvider.notifier).showAddProfile(),
+                ),
+              ),
+              Expanded(
+                child: _SourceAction(
+                  key: const ValueKey('gfp_manual_refresh'),
+                  icon: Icons.refresh_rounded,
+                  label: t.pages.home.refreshAction,
+                  onTap: onRefresh,
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _SourceAction extends StatelessWidget {
+  const _SourceAction({super.key, required this.icon, required this.label, required this.onTap});
+
+  final IconData icon;
+  final String label;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Semantics(
+      button: true,
+      label: label,
+      excludeSemantics: true,
+      onTap: onTap,
+      child: InkWell(
+        excludeFromSemantics: true,
+        onTap: onTap,
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(minHeight: 76),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 10),
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(icon, size: 22, color: theme.colorScheme.primary),
+                const Gap(5),
+                Text(
+                  label,
+                  textAlign: TextAlign.center,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: theme.textTheme.labelMedium?.copyWith(fontWeight: FontWeight.w600),
                 ),
               ],
             ),
           ),
-        ],
+        ),
+      ),
+    );
+  }
+}
+
+class _ConnectionStage extends ConsumerWidget {
+  const _ConnectionStage();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final theme = Theme.of(context);
+    final connected = ref.watch(connectionNotifierProvider).valueOrNull is Connected;
+    return Container(
+      width: double.infinity,
+      constraints: BoxConstraints(minHeight: connected ? 220 : 300),
+      decoration: BoxDecoration(
+        color: theme.colorScheme.surface,
+        borderRadius: BorderRadius.circular(32),
+        border: Border.all(color: theme.colorScheme.outlineVariant.withValues(alpha: .65)),
+      ),
+      child: const Center(
+        child: Column(mainAxisSize: MainAxisSize.min, children: [ConnectionButton(), ActiveProxyDelayIndicator()]),
       ),
     );
   }
@@ -485,30 +529,3 @@ Future<void> _selectLocalLowestProxy(WidgetRef ref, ValueNotifier<String> status
 
 String _profileName(ProfileEntity profile) =>
     profile.map(remote: (profile) => profile.name, local: (profile) => profile.name);
-
-class AppVersionLabel extends HookConsumerWidget {
-  const AppVersionLabel({super.key});
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final t = ref.watch(translationsProvider).requireValue;
-    final theme = Theme.of(context);
-
-    final version = ref.watch(appInfoProvider).requireValue.presentVersion;
-    if (version.isBlank) return const SizedBox();
-
-    return Semantics(
-      label: t.common.version,
-      button: false,
-      child: Container(
-        decoration: BoxDecoration(color: theme.colorScheme.secondaryContainer, borderRadius: BorderRadius.circular(4)),
-        padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
-        child: Text(
-          version,
-          textDirection: TextDirection.ltr,
-          style: theme.textTheme.bodySmall?.copyWith(color: theme.colorScheme.onSecondaryContainer),
-        ),
-      ),
-    );
-  }
-}

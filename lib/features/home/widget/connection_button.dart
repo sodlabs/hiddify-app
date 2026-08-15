@@ -4,20 +4,16 @@ import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'package:gap/gap.dart';
 import 'package:hiddify/core/localization/translations.dart';
 import 'package:hiddify/core/model/constants.dart';
-import 'package:hiddify/core/model/failures.dart';
 import 'package:hiddify/core/router/bottom_sheets/bottom_sheets_notifier.dart';
 import 'package:hiddify/core/router/dialog/dialog_notifier.dart';
-import 'package:hiddify/core/router/dialog/widgets/custom_alert_dialog.dart';
 import 'package:hiddify/core/theme/theme_extensions.dart';
 import 'package:hiddify/core/widget/animated_text.dart';
 import 'package:hiddify/features/connection/model/connection_status.dart';
 import 'package:hiddify/features/connection/notifier/connection_notifier.dart';
 import 'package:hiddify/features/profile/notifier/active_profile_notifier.dart';
 import 'package:hiddify/features/proxy/active/active_proxy_notifier.dart';
-import 'package:hiddify/features/settings/data/config_option_repository.dart';
 import 'package:hiddify/features/settings/notifier/config_option/config_option_notifier.dart';
 import 'package:hiddify/gen/assets.gen.dart';
-import 'package:hiddify/singbox/model/singbox_config_enum.dart';
 import 'package:hooks_riverpod/hooks_riverpod.dart';
 
 // TODO: rewrite
@@ -32,7 +28,6 @@ class ConnectionButton extends HookConsumerWidget {
     final delay = activeProxy.valueOrNull?.urlTestDelay ?? 0;
 
     final requiresReconnect = ref.watch(configOptionNotifierProvider).valueOrNull;
-    final today = DateTime.now();
     // final animationController = useAnimationController(
     //   duration: const Duration(seconds: 1),
     // )..repeat(reverse: true); // Ensure the animation loops indefinitely
@@ -155,35 +150,16 @@ class ConnectionButton extends HookConsumerWidget {
       },
       buttonColor: switch (connectionStatus) {
         AsyncData(value: Connected()) when requiresReconnect == true => Colors.teal,
-        AsyncData(value: Connected()) when !ConnectionConst.isValidDelay(delay) => const Color.fromARGB(255, 185, 176, 103),
+        AsyncData(value: Connected()) when !ConnectionConst.isValidDelay(delay) => const Color.fromARGB(
+          255,
+          185,
+          176,
+          103,
+        ),
         AsyncData(value: Connected()) => buttonTheme.connectedColor!,
         AsyncData(value: _) => buttonTheme.idleColor!,
         _ => Colors.red,
       },
-      image: switch (connectionStatus) {
-        AsyncData(value: Connected()) when requiresReconnect == true => Assets.images.disconnectNorouz,
-        AsyncData(value: Connected()) => Assets.images.connectNorouz,
-        AsyncData(value: _) => Assets.images.disconnectNorouz,
-        _ => Assets.images.disconnectNorouz,
-        AsyncData(value: Disconnected()) || AsyncError() => Assets.images.disconnectNorouz,
-        AsyncData(value: Connected()) => Assets.images.connectNorouz,
-        _ => Assets.images.disconnectNorouz,
-      },
-      newButtonColor: switch (connectionStatus) {
-        AsyncData(value: Connected()) when requiresReconnect == true => Colors.teal,
-        AsyncData(value: Connected()) when !ConnectionConst.isValidDelay(delay) => const Color.fromARGB(255, 185, 176, 103),
-        AsyncData(value: Connected()) => buttonTheme.connectedColor!,
-        AsyncData(value: _) => buttonTheme.idleColor!,
-        _ => Colors.red,
-      },
-      animated: switch (connectionStatus) {
-        AsyncData(value: Connected()) when requiresReconnect == true => false,
-        AsyncData(value: Connected()) when !ConnectionConst.isValidDelay(delay) => false,
-        AsyncData(value: Connected()) => true,
-        AsyncData(value: _) => true,
-        _ => false,
-      },
-      useImage: today.day >= 19 && today.day <= 23 && today.month == 3,
       secureLabel: secureLabel,
     );
   }
@@ -195,10 +171,6 @@ class _ConnectionButton extends StatelessWidget {
     required this.enabled,
     required this.label,
     required this.buttonColor,
-    required this.image,
-    required this.useImage,
-    required this.newButtonColor,
-    required this.animated,
     required this.secureLabel,
   });
 
@@ -206,20 +178,13 @@ class _ConnectionButton extends StatelessWidget {
   final bool enabled;
   final String label;
   final Color buttonColor;
-  final AssetGenImage image;
-  final bool useImage;
   final String secureLabel;
-
-  final Color newButtonColor;
-
-  final bool animated;
 
   @override
   Widget build(BuildContext context) {
     return Column(
       mainAxisAlignment: MainAxisAlignment.center,
       children: [
-        // CircleDesignWidget(newButtonColor: newButtonColor, onTap: onTap, animated: animated),
         Semantics(
           button: true,
           enabled: enabled,
@@ -239,20 +204,7 @@ class _ConnectionButton extends StatelessWidget {
               child: InkWell(
                 focusColor: Colors.grey,
                 onTap: onTap,
-                child: Padding(
-                  padding: const EdgeInsets.all(36),
-                  child: TweenAnimationBuilder(
-                    tween: ColorTween(end: buttonColor),
-                    duration: const Duration(milliseconds: 250),
-                    builder: (context, value, child) {
-                      if (useImage) {
-                        return image.image();
-                      } else {
-                        return Assets.images.logo.svg(colorFilter: ColorFilter.mode(value!, BlendMode.srcIn));
-                      }
-                    },
-                  ),
-                ),
+                child: Padding(padding: const EdgeInsets.all(36), child: Assets.images.logo.svg()),
               ),
             ).animate(target: enabled ? 0 : 1).blurXY(end: 1),
           ).animate(target: enabled ? 0 : 1).scaleXY(end: .88, curve: Curves.easeIn),
