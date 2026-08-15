@@ -24,6 +24,13 @@ abstract class Preferences {
     overrideValue: _debugIntroPage && kDebugMode ? false : null,
   );
 
+  static final publicProxyNoticeAccepted = PreferencesNotifier.create<bool, bool>(
+    "public_proxy_notice_accepted_v1",
+    false,
+  );
+
+  static final showConnectionDetails = PreferencesNotifier.create<bool, bool>("show_connection_details", false);
+
   // Null means that auto selection has not been performed yet.
   static final autoAppsSelectionRegion = PreferencesNotifier.create<Region?, String?>(
     "auto_apps_selection_region",

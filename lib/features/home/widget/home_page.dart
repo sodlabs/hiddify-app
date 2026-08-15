@@ -7,6 +7,7 @@ import 'package:flutter_hooks/flutter_hooks.dart';
 import 'package:gap/gap.dart';
 import 'package:hiddify/core/app_info/app_info_provider.dart';
 import 'package:hiddify/core/localization/translations.dart';
+import 'package:hiddify/core/preferences/general_preferences.dart';
 import 'package:hiddify/core/router/bottom_sheets/bottom_sheets_notifier.dart';
 import 'package:hiddify/features/gfp/gfp_proxy_service.dart';
 import 'package:hiddify/features/gfp/gfp_sustained_proxy_validator.dart';
@@ -16,7 +17,6 @@ import 'package:hiddify/features/profile/data/profile_data_providers.dart';
 import 'package:hiddify/features/profile/data/profile_repository.dart';
 import 'package:hiddify/features/profile/model/profile_entity.dart';
 import 'package:hiddify/features/profile/notifier/active_profile_notifier.dart';
-import 'package:hiddify/features/profile/widget/profile_tile.dart';
 import 'package:hiddify/features/proxy/active/active_proxy_card.dart';
 import 'package:hiddify/features/proxy/active/active_proxy_delay_indicator.dart';
 import 'package:hiddify/features/settings/data/config_option_repository.dart';
@@ -24,7 +24,6 @@ import 'package:hiddify/gen/assets.gen.dart';
 import 'package:hiddify/hiddifycore/hiddify_core_service_provider.dart';
 import 'package:hiddify/singbox/model/core_status.dart';
 import 'package:hooks_riverpod/hooks_riverpod.dart';
-import 'package:sliver_tools/sliver_tools.dart';
 
 class HomePage extends HookConsumerWidget {
   const HomePage({super.key});
@@ -60,8 +59,7 @@ class HomePage extends HookConsumerWidget {
           final existing = allProfiles
               .where(
                 (profile) =>
-                    profile.map(remote: (profile) => profile.name, local: (profile) => profile.name) ==
-                    kGfpProfileTitle,
+                    isGfpProfileName(profile.map(remote: (profile) => profile.name, local: (profile) => profile.name)),
               )
               .firstOrNull;
 
@@ -140,22 +138,19 @@ class HomePage extends HookConsumerWidget {
         actions: [
           Semantics(
             key: const ValueKey("gfp_manual_refresh"),
-            label: 'Find new sodlab proxies',
+            label: t.pages.home.refreshAction,
             child: IconButton(
-              tooltip: 'Rechercher de nouveaux proxies (peut reconnecter le VPN)',
+              tooltip: t.pages.home.refreshAction,
               icon: Icon(Icons.refresh_rounded, color: theme.colorScheme.primary),
               onPressed: () async {
                 final confirmed = await showDialog<bool>(
                   context: context,
                   builder: (context) => AlertDialog(
-                    title: const Text('Rechercher de nouveaux proxies ?'),
-                    content: const Text(
-                      'Cette analyse locale approfondie remplace la liste actuelle. '
-                      'Le VPN peut se reconnecter : à lancer lorsque vous n’êtes pas en train de faire quelque chose d’important.',
-                    ),
+                    title: Text(t.pages.home.refreshTitle),
+                    content: Text(t.pages.home.refreshMessage),
                     actions: [
-                      TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Annuler')),
-                      FilledButton(onPressed: () => Navigator.pop(context, true), child: const Text('Actualiser')),
+                      TextButton(onPressed: () => Navigator.pop(context, false), child: Text(t.common.cancel)),
+                      FilledButton(onPressed: () => Navigator.pop(context, true), child: Text(t.common.update)),
                     ],
                   ),
                 );
@@ -187,106 +182,192 @@ class HomePage extends HookConsumerWidget {
             ),
           ),
           const Gap(8),
-          Semantics(
-            key: const ValueKey("profile_add_button"),
-            label: t.pages.profiles.add,
-            child: IconButton(
-              icon: Icon(Icons.add_rounded, color: theme.colorScheme.primary),
-              onPressed: () => ref.read(bottomSheetsNotifierProvider.notifier).showAddProfile(),
-            ),
-          ),
-          const Gap(8),
         ],
       ),
-      body: Column(
-        children: [
-          const ThirdPartyWarningBanner(),
-          if (gfpError.value != null)
-            Container(
-              width: double.infinity,
-              color: Colors.red.shade900,
-              padding: const EdgeInsets.all(8),
-              child: Text('sodlab debug: ${gfpError.value}', style: const TextStyle(color: Colors.white, fontSize: 11)),
-            )
-          else if (gfpStatus.value != 'done' && gfpStatus.value != 'done (existing)')
-            Container(
-              width: double.infinity,
-              color: Colors.blue.shade900,
-              padding: const EdgeInsets.all(6),
-              child: Text('sodlab: ${gfpStatus.value}', style: const TextStyle(color: Colors.white, fontSize: 11)),
-            ),
-          Expanded(
-            child: Container(
-              decoration: BoxDecoration(
-                image: DecorationImage(
-                  image: const AssetImage('assets/images/world_map.png'), // Replace with your image path
-                  fit: BoxFit.cover,
-                  opacity: 0.09,
-                  colorFilter: theme.brightness == Brightness.dark
-                      ? ColorFilter.mode(Colors.white.withValues(alpha: .15), BlendMode.srcIn) //
-                      : ColorFilter.mode(
-                          Colors.grey.withValues(alpha: 1),
-                          BlendMode.srcATop,
-                        ), // Apply white tint in dark mode
+      body: Container(
+        decoration: BoxDecoration(
+          image: DecorationImage(
+            image: const AssetImage('assets/images/world_map.png'),
+            fit: BoxFit.cover,
+            opacity: 0.045,
+            colorFilter: ColorFilter.mode(theme.colorScheme.onSurface, BlendMode.srcIn),
+          ),
+        ),
+        child: Center(
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 600),
+            child: CustomScrollView(
+              slivers: [
+                const SliverPadding(
+                  padding: EdgeInsets.fromLTRB(16, 12, 16, 0),
+                  sliver: SliverToBoxAdapter(child: ThirdPartyWarningBanner()),
                 ),
-              ),
-              child: Stack(
-                alignment: Alignment.center,
-                children: [
-                  Center(
-                    child: ConstrainedBox(
-                      constraints: const BoxConstraints(
-                        maxWidth: 600, // Set the maximum width here
-                      ),
-                      child: CustomScrollView(
-                        slivers: [
-                          // switch (activeProfile) {
-                          // AsyncData(value: final profile?) =>
-                          MultiSliver(
-                            children: [
-                              // const Gap(100),
-                              switch (activeProfile) {
-                                AsyncData(value: final profile?) => ProfileTile(
-                                  profile: profile,
-                                  isMain: true,
-                                  margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                                ),
-                                _ => const Text(""),
-                              },
-                              const SliverFillRemaining(
-                                hasScrollBody: false,
-                                child: Column(
-                                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                                  children: [
-                                    Expanded(
-                                      child: Column(
-                                        mainAxisSize: MainAxisSize.min,
-                                        mainAxisAlignment: MainAxisAlignment.center,
-                                        children: [ConnectionButton(), ActiveProxyDelayIndicator()],
-                                      ),
-                                    ),
-                                    ActiveProxyFooter(),
-                                  ],
-                                ),
-                              ),
-                            ],
-                          ),
-                          // AsyncData() => switch (hasAnyProfile) {
-                          //     AsyncData(value: true) => const EmptyActiveProfileHomeBody(),
-                          //     _ => const EmptyProfilesHomeBody(),
-                          //   },
-                          // AsyncError(:final error) => SliverErrorBodyPlaceholder(t.presentShortError(error)),
-                          // _ => const SliverToBoxAdapter(),
-                          // },
-                        ],
-                      ),
+                if (_showGfpStatus(gfpStatus.value, gfpError.value, ref.watch(Preferences.showConnectionDetails)))
+                  SliverPadding(
+                    padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
+                    sliver: SliverToBoxAdapter(
+                      child: _ConnectionProgressCard(status: gfpStatus.value, error: gfpError.value),
                     ),
                   ),
-                ],
-              ),
+                SliverPadding(
+                  padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
+                  sliver: SliverToBoxAdapter(
+                    child: switch (activeProfile) {
+                      AsyncData(value: final profile?) => _SourceCard(profile: profile),
+                      _ => const SizedBox(height: 72),
+                    },
+                  ),
+                ),
+                const SliverFillRemaining(
+                  hasScrollBody: false,
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Expanded(
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [ConnectionButton(), ActiveProxyDelayIndicator()],
+                        ),
+                      ),
+                      ActiveProxyFooter(),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+bool _showGfpStatus(String status, String? error, bool showDetails) {
+  if (error != null || showDetails) return true;
+  if (status == 'idle' || status == 'done' || status == 'done (existing)') return false;
+  if (status == 'using locally verified route') return false;
+  return true;
+}
+
+class _SourceCard extends ConsumerWidget {
+  const _SourceCard({required this.profile});
+
+  final ProfileEntity profile;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final theme = Theme.of(context);
+    final t = ref.watch(translationsProvider).requireValue;
+    final automatic = isGfpProfileName(profile.name);
+
+    return Card(
+      clipBehavior: Clip.antiAlias,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(20),
+        side: BorderSide(color: theme.colorScheme.outlineVariant),
+      ),
+      child: Column(
+        children: [
+          ListTile(
+            minTileHeight: 72,
+            leading: CircleAvatar(
+              backgroundColor: theme.colorScheme.primaryContainer,
+              foregroundColor: theme.colorScheme.onPrimaryContainer,
+              child: Icon(automatic ? Icons.shield_outlined : Icons.link_rounded),
+            ),
+            title: Text(automatic ? t.pages.home.publicNetwork : profile.name),
+            subtitle: Text(
+              automatic ? t.pages.home.publicNetworkSubtitle : t.pages.home.customSourceSubtitle,
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+            ),
+            trailing: const Icon(Icons.chevron_right_rounded),
+            onTap: () => ref.read(bottomSheetsNotifierProvider.notifier).showProfilesOverview(),
+          ),
+          Divider(height: 1, color: theme.colorScheme.outlineVariant),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+            child: Row(
+              children: [
+                Expanded(
+                  child: TextButton.icon(
+                    onPressed: () => ref.read(bottomSheetsNotifierProvider.notifier).showProfilesOverview(),
+                    icon: const Icon(Icons.swap_horiz_rounded),
+                    label: Text(t.pages.home.manageSources),
+                  ),
+                ),
+                Expanded(
+                  child: TextButton.icon(
+                    onPressed: () => ref.read(bottomSheetsNotifierProvider.notifier).showAddProfile(),
+                    icon: const Icon(Icons.add_link_rounded),
+                    label: Text(t.pages.home.addCustomSource),
+                  ),
+                ),
+              ],
             ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+class _ConnectionProgressCard extends ConsumerWidget {
+  const _ConnectionProgressCard({required this.status, this.error});
+
+  final String status;
+  final String? error;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final theme = Theme.of(context);
+    final t = ref.watch(translationsProvider).requireValue;
+    final failed = error != null || status == 'no locally verified route';
+    final ready = status == 'using locally verified route' || status.startsWith('refresh complete');
+    final loading = !failed && !ready && !status.startsWith('refresh recommended') && status != 'done';
+
+    final String label;
+    if (error != null) {
+      label = t.pages.home.scan.failed;
+    } else if (status.startsWith('test ')) {
+      label = '${t.pages.home.scan.testing} ${status.substring(5)}';
+    } else if (status.startsWith('refresh recommended')) {
+      label = t.pages.home.scan.refreshRecommended;
+    } else if (status == 'waiting for local protocol tests' || status == 'checking real local transfer') {
+      label = t.pages.home.scan.validating;
+    } else if (status == 'using locally verified route') {
+      label = t.pages.home.scan.ready;
+    } else if (status == 'no locally verified route') {
+      label = t.pages.home.scan.noRoute;
+    } else if (status.startsWith('refresh complete')) {
+      label = t.pages.home.scan.refreshComplete;
+    } else {
+      label = t.pages.home.scan.collecting;
+    }
+
+    final foreground = failed ? theme.colorScheme.onErrorContainer : theme.colorScheme.onSecondaryContainer;
+    return Semantics(
+      liveRegion: true,
+      label: label,
+      child: Card(
+        color: failed ? theme.colorScheme.errorContainer : theme.colorScheme.secondaryContainer,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+          child: Row(
+            children: [
+              if (loading)
+                SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2.5, color: foreground))
+              else
+                Icon(failed ? Icons.error_outline_rounded : Icons.check_circle_outline_rounded, color: foreground),
+              const Gap(12),
+              Expanded(
+                child: Text(label, style: theme.textTheme.bodyMedium?.copyWith(color: foreground)),
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }
@@ -327,7 +408,7 @@ Future<void> _refreshGfpProfileManually(
     status.value = 'deep refresh: collecting and testing proxies';
     final repo = await ref.read(profileRepositoryProvider.future);
     final profiles = (await repo.watchAll().first).getOrElse((_) => <ProfileEntity>[]);
-    final profile = profiles.where((entry) => _profileName(entry) == kGfpProfileTitle).firstOrNull;
+    final profile = profiles.where((entry) => isGfpProfileName(_profileName(entry))).firstOrNull;
     if (profile == null) {
       error.value = 'sodlab profile is not available yet';
       return;
@@ -371,7 +452,7 @@ Future<void> _updateExistingProfile(
 
 Future<void> _selectLocalLowestProxy(WidgetRef ref, ValueNotifier<String> status) async {
   final profile = ref.read(activeProfileProvider).valueOrNull;
-  if (profile == null || _profileName(profile) != kGfpProfileTitle) return;
+  if (profile == null || !isGfpProfileName(_profileName(profile))) return;
 
   try {
     status.value = 'waiting for local protocol tests';
@@ -379,7 +460,7 @@ Future<void> _selectLocalLowestProxy(WidgetRef ref, ValueNotifier<String> status
     // the initial zero/failed delay values as usable routes.
     await Future<void>.delayed(const Duration(seconds: 30));
     final stillActive = ref.read(activeProfileProvider).valueOrNull;
-    if (stillActive == null || _profileName(stillActive) != kGfpProfileTitle) return;
+    if (stillActive == null || !isGfpProfileName(_profileName(stillActive))) return;
 
     status.value = 'checking real local transfer';
     final core = ref.read(hiddifyCoreServiceProvider);

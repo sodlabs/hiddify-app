@@ -9,23 +9,45 @@ class AppTheme {
   final String fontFamily;
 
   ThemeData lightTheme(ColorScheme? lightColorScheme) {
-    final ColorScheme scheme = lightColorScheme ?? ColorScheme.fromSeed(seedColor: const Color(0xFF293CA0));
+    final ColorScheme scheme =
+        lightColorScheme ??
+        ColorScheme.fromSeed(
+          seedColor: const Color(0xFFA82448),
+          brightness: Brightness.light,
+          surface: const Color(0xFFFFFBF8),
+        );
     return ThemeData(
       useMaterial3: true,
       colorScheme: scheme,
+      scaffoldBackgroundColor: const Color(0xFFF8F5F2),
       fontFamily: fontFamily,
+      appBarTheme: const AppBarTheme(centerTitle: false, scrolledUnderElevation: 0),
+      cardTheme: const CardThemeData(elevation: 0, margin: EdgeInsets.zero),
+      filledButtonTheme: FilledButtonThemeData(
+        style: FilledButton.styleFrom(minimumSize: const Size(48, 48), shape: const StadiumBorder()),
+      ),
       extensions: const <ThemeExtension<dynamic>>{ConnectionButtonTheme.light},
     );
   }
 
   ThemeData darkTheme(ColorScheme? darkColorScheme) {
     final ColorScheme scheme =
-        darkColorScheme ?? ColorScheme.fromSeed(seedColor: const Color(0xFF293CA0), brightness: Brightness.dark);
+        darkColorScheme ??
+        ColorScheme.fromSeed(
+          seedColor: const Color(0xFFE45B7D),
+          brightness: Brightness.dark,
+          surface: const Color(0xFF151D2C),
+        );
     return ThemeData(
       useMaterial3: true,
       colorScheme: scheme,
-      scaffoldBackgroundColor: mode.trueBlack ? Colors.black : scheme.background,
+      scaffoldBackgroundColor: mode.trueBlack ? Colors.black : const Color(0xFF0B1323),
       fontFamily: fontFamily,
+      appBarTheme: const AppBarTheme(centerTitle: false, scrolledUnderElevation: 0),
+      cardTheme: const CardThemeData(elevation: 0, margin: EdgeInsets.zero),
+      filledButtonTheme: FilledButtonThemeData(
+        style: FilledButton.styleFrom(minimumSize: const Size(48, 48), shape: const StadiumBorder()),
+      ),
       extensions: const <ThemeExtension<dynamic>>{ConnectionButtonTheme.light},
     );
   }

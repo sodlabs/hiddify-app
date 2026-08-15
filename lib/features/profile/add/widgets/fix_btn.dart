@@ -25,7 +25,7 @@ class FixBtn extends ConsumerWidget {
         child: Container(
           alignment: Alignment.center,
           height: height,
-          padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 4),
+          padding: EdgeInsets.symmetric(vertical: isMobile ? 6 : 8, horizontal: 4),
           decoration: BoxDecoration(
             borderRadius: borderRadius,
             border: Border.all(color: theme.colorScheme.outlineVariant),
@@ -33,8 +33,8 @@ class FixBtn extends ConsumerWidget {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Icon(icon, size: isMobile ? 32 : 40, color: color),
-              Gap(isMobile ? 4 : 8),
+              Icon(icon, size: isMobile ? 28 : 40, color: color),
+              Gap(isMobile ? 2 : 8),
               Text(
                 title,
                 style: isMobile

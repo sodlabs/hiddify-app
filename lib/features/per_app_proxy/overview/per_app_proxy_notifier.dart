@@ -201,7 +201,7 @@ class PerAppProxy extends _$PerAppProxy with AppLogger {
         '  ',
       ).convert({'addedPkgs': userSelected.toList(), 'removedPkgs': forceDeselected.toList()});
       body = '```\n$body\n```';
-      UriUtils.tryLaunch(Uri.parse('https://github.com/hiddify/Android-GFW-Apps/issues/new?title=$title&body=$body'));
+      UriUtils.tryLaunch(Uri.parse('https://github.com/sodlabs/hiddify-app/issues/new?title=$title&body=$body'));
       return true;
     } else {
       ref

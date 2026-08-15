@@ -25,7 +25,13 @@ class GeneralPage extends HookConsumerWidget {
         children: [
           const LocalePrefTile(),
           const ThemeModePrefTile(),
-          const EnableAnalyticsPrefTile(),
+          SwitchListTile.adaptive(
+            title: Text(t.pages.settings.general.showConnectionDetails),
+            subtitle: Text(t.pages.settings.general.showConnectionDetailsMsg),
+            secondary: const Icon(Icons.monitor_heart_outlined),
+            value: ref.watch(Preferences.showConnectionDetails),
+            onChanged: ref.read(Preferences.showConnectionDetails.notifier).update,
+          ),
           SwitchListTile.adaptive(
             title: Text(t.pages.settings.general.autoIpCheck),
             value: ref.watch(Preferences.autoCheckIp),

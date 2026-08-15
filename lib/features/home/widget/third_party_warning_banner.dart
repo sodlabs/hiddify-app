@@ -1,59 +1,64 @@
-// lib/features/home/widget/third_party_warning_banner.dart
-//
-// Fichier NEUF (pas une modification d'un fichier upstream) : zéro risque
-// de conflit lors du sync. Ne dépend pas du système translations.dart
-// d'hiddify (qui lui, est modifié en continu par l'upstream et généré via
-// project.inlang) : on gère la langue nous-mêmes via Localizations, avec
-// repli sur l'anglais.
-//
-// Usage dans home_page.dart : ajouter au-dessus du body existant,
-// voir README_INTEGRATION.md pour le diff exact (une seule ligne
-// d'insertion, pas de modification du Container existant).
-
 import 'package:flutter/material.dart';
+import 'package:gap/gap.dart';
+import 'package:hiddify/core/localization/translations.dart';
+import 'package:hiddify/core/preferences/general_preferences.dart';
+import 'package:hooks_riverpod/hooks_riverpod.dart';
 
-class ThirdPartyWarningBanner extends StatelessWidget {
-  const ThirdPartyWarningBanner({super.key});
+class ThirdPartyWarningBanner extends ConsumerWidget {
+  const ThirdPartyWarningBanner({super.key, this.compact = true});
 
-  static const Map<String, String> _messages = {
-    'en': "⚠ Third-party public proxies. Never enter passwords, banking or "
-        "personal accounts while connected. Use at your own risk.",
-    'fr': "⚠ Proxys publics tiers. N'entrez jamais de mots de passe, "
-        "comptes bancaires ou identifiants sensibles pendant la connexion. "
-        "Utilisation à vos risques.",
-    'ru': "⚠ Стороннние публичные прокси. Никогда не вводите пароли, "
-        "банковские данные или личные аккаунты во время подключения. "
-        "Используйте на свой риск.",
-    'zh': "⚠ 第三方公共代理。连接期间请勿输入密码、银行或个人账户信息。"
-        "使用风险自负。",
-    'ar': "⚠ وكلاء عامة تابعون لجهات خارجية. لا تُدخل أبدًا كلمات المرور "
-        "أو بيانات مصرفية أو حسابات شخصية أثناء الاتصال. الاستخدام على "
-        "مسؤوليتك الخاصة.",
-  };
-
-  String _resolveMessage(BuildContext context) {
-    final code = Localizations.localeOf(context).languageCode;
-    return _messages[code] ?? _messages['en']!;
-  }
+  final bool compact;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final theme = Theme.of(context);
-    final isRtl = Localizations.localeOf(context).languageCode == 'ar';
+    final t = ref.watch(translationsProvider).requireValue;
+    final accepted = ref.watch(Preferences.publicProxyNoticeAccepted);
+    if (compact && accepted) return const SizedBox.shrink();
 
-    return Directionality(
-      textDirection: isRtl ? TextDirection.rtl : TextDirection.ltr,
-      child: Container(
-        width: double.infinity,
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-        color: theme.colorScheme.errorContainer,
-        child: Text(
-          _resolveMessage(context),
-          style: theme.textTheme.bodySmall?.copyWith(
-            color: theme.colorScheme.onErrorContainer,
-            fontWeight: FontWeight.w500,
+    return Semantics(
+      container: true,
+      child: Card(
+        color: theme.colorScheme.tertiaryContainer,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        child: Padding(
+          padding: const EdgeInsets.all(16),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Icon(Icons.info_outline_rounded, color: theme.colorScheme.onTertiaryContainer),
+              const Gap(12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      t.pages.home.publicProxyNotice.title,
+                      style: theme.textTheme.titleSmall?.copyWith(
+                        color: theme.colorScheme.onTertiaryContainer,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                    const Gap(4),
+                    Text(
+                      t.pages.home.publicProxyNotice.message,
+                      style: theme.textTheme.bodySmall?.copyWith(color: theme.colorScheme.onTertiaryContainer),
+                    ),
+                    if (compact) ...[
+                      const Gap(8),
+                      Align(
+                        alignment: AlignmentDirectional.centerEnd,
+                        child: TextButton(
+                          onPressed: () => ref.read(Preferences.publicProxyNoticeAccepted.notifier).update(true),
+                          child: Text(t.pages.home.publicProxyNotice.accept),
+                        ),
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+            ],
           ),
-          textAlign: TextAlign.center,
         ),
       ),
     );

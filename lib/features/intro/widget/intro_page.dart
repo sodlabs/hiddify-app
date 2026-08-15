@@ -6,7 +6,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_hooks/flutter_hooks.dart';
 import 'package:gap/gap.dart';
-import 'package:hiddify/core/analytics/analytics_controller.dart';
 import 'package:hiddify/core/http_client/dio_http_client.dart';
 import 'package:hiddify/core/localization/locale_preferences.dart';
 import 'package:hiddify/core/localization/translations.dart';
@@ -14,6 +13,7 @@ import 'package:hiddify/core/model/constants.dart';
 import 'package:hiddify/core/model/region.dart';
 import 'package:hiddify/core/preferences/general_preferences.dart';
 import 'package:hiddify/features/common/general_pref_tiles.dart';
+import 'package:hiddify/features/home/widget/third_party_warning_banner.dart';
 import 'package:hiddify/features/settings/data/config_option_repository.dart';
 import 'package:hiddify/features/settings/widget/preference_tile.dart';
 import 'package:hiddify/gen/assets.gen.dart';
@@ -48,15 +48,10 @@ class IntroPage extends HookConsumerWidget with PresLogger {
 
     // for focus management
     final focusStates = <String, ValueNotifier<bool>>{
-      IntroConst.termsAndConditionsKey: useState<bool>(false),
       IntroConst.githubKey: useState<bool>(false),
       IntroConst.licenseKey: useState<bool>(false),
     };
-    final focusNodes = <String, FocusNode>{
-      IntroConst.termsAndConditionsKey: useFocusNode(),
-      IntroConst.githubKey: useFocusNode(),
-      IntroConst.licenseKey: useFocusNode(),
-    };
+    final focusNodes = <String, FocusNode>{IntroConst.githubKey: useFocusNode(), IntroConst.licenseKey: useFocusNode()};
     useEffect(() {
       for (final entry in focusNodes.entries) {
         entry.value.addListener(() => focusStates[entry.key]!.value = entry.value.hasPrimaryFocus);
@@ -89,7 +84,8 @@ class IntroPage extends HookConsumerWidget with PresLogger {
                     child: Text(
                       t.intro.banner,
                       style: theme.textTheme.bodyLarge,
-                      maxLines: 1,
+                      maxLines: 2,
+                      textAlign: TextAlign.center,
                       overflow: TextOverflow.ellipsis,
                     ),
                   ),
@@ -107,55 +103,42 @@ class IntroPage extends HookConsumerWidget with PresLogger {
                       await ref.read(ConfigOptions.directDnsAddress.notifier).reset();
                     },
                   ),
-                  const EnableAnalyticsPrefTile(),
-                  const Gap(24),
-                  Focus(
-                    focusNode: focusNodes[IntroConst.termsAndConditionsKey],
-                    onKeyEvent: (node, event) => _handleKeyEvent(event, IntroConst.termsAndConditionsKey),
-                    child: Text.rich(
-                      t.intro.termsAndPolicyCaution(
-                        tap: (text) => TextSpan(
-                          text: text,
-                          style: TextStyle(
-                            color: focusStates[IntroConst.termsAndConditionsKey]!.value ? Colors.green : Colors.blue,
-                          ),
-                          recognizer: TapGestureRecognizer()
-                            ..onTap = () async {
-                              await UriUtils.tryLaunch(Uri.parse(Constants.termsAndConditionsUrl));
-                            },
-                        ),
-                      ),
-                      style: theme.textTheme.bodySmall,
-                    ),
+                  const Padding(
+                    padding: EdgeInsets.symmetric(horizontal: 16),
+                    child: ThirdPartyWarningBanner(compact: false),
                   ),
                   const Gap(8),
-                  Focus(
-                    focusNode: focusNodes[IntroConst.githubKey],
-                    onKeyEvent: (node, event) => _handleKeyEvent(event, IntroConst.githubKey),
-                    child: Text.rich(
-                      t.intro.info(
-                        tap_source: (text) => TextSpan(
-                          text: text,
-                          style: TextStyle(
-                            color: focusStates[IntroConst.githubKey]!.value ? Colors.green : Colors.blue,
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 16),
+                    child: Focus(
+                      focusNode: focusNodes[IntroConst.githubKey],
+                      onKeyEvent: (node, event) => _handleKeyEvent(event, IntroConst.githubKey),
+                      child: Text.rich(
+                        t.intro.info(
+                          tap_source: (text) => TextSpan(
+                            text: text,
+                            style: TextStyle(
+                              color: focusStates[IntroConst.githubKey]!.value ? Colors.green : Colors.blue,
+                            ),
+                            recognizer: TapGestureRecognizer()
+                              ..onTap = () async {
+                                await UriUtils.tryLaunch(Uri.parse(Constants.githubUrl));
+                              },
                           ),
-                          recognizer: TapGestureRecognizer()
-                            ..onTap = () async {
-                              await UriUtils.tryLaunch(Uri.parse(Constants.githubUrl));
-                            },
-                        ),
-                        tap_license: (text) => TextSpan(
-                          text: text,
-                          style: TextStyle(
-                            color: focusStates[IntroConst.githubKey]!.value ? Colors.green : Colors.blue,
+                          tap_license: (text) => TextSpan(
+                            text: text,
+                            style: TextStyle(
+                              color: focusStates[IntroConst.githubKey]!.value ? Colors.green : Colors.blue,
+                            ),
+                            recognizer: TapGestureRecognizer()
+                              ..onTap = () async {
+                                await UriUtils.tryLaunch(Uri.parse(Constants.licenseUrl));
+                              },
                           ),
-                          recognizer: TapGestureRecognizer()
-                            ..onTap = () async {
-                              await UriUtils.tryLaunch(Uri.parse(Constants.licenseUrl));
-                            },
                         ),
+                        style: theme.textTheme.bodySmall,
+                        textAlign: TextAlign.center,
                       ),
-                      style: theme.textTheme.bodySmall,
                     ),
                   ),
                   // only for managing license node focus
@@ -178,14 +161,7 @@ class IntroPage extends HookConsumerWidget with PresLogger {
         onPressed: () async {
           if (isStarting.value) return;
           isStarting.value = true;
-          if (!ref.read(analyticsControllerProvider).requireValue) {
-            loggy.info("disabling analytics per user request");
-            try {
-              await ref.read(analyticsControllerProvider.notifier).disableAnalytics();
-            } catch (error, stackTrace) {
-              loggy.error("could not disable analytics", error, stackTrace);
-            }
-          }
+          await ref.read(Preferences.publicProxyNoticeAccepted.notifier).update(true);
           await ref.read(Preferences.introCompleted.notifier).update(true);
         },
       ),

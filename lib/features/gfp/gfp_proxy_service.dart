@@ -20,7 +20,10 @@ import 'package:shared_preferences/shared_preferences.dart';
 /// Titre utilisé à la fois dans le header `#profile-title` du contenu
 /// généré et pour retrouver "notre" profil parmi ceux de l'utilisateur.
 /// Ne pas changer sans mettre à jour les deux usages ensemble.
-const String kGfpProfileTitle = 'sodlab (auto, non verifie)';
+const String kGfpProfileTitle = 'Sod public network';
+const Set<String> kGfpLegacyProfileTitles = {'sodlab (auto, non verifie)'};
+
+bool isGfpProfileName(String name) => name == kGfpProfileTitle || kGfpLegacyProfileTitles.contains(name);
 
 // V8 invalidates the previous selection policy, which accidentally retained
 // candidates whose preliminary network test had failed. Existing
@@ -272,7 +275,13 @@ List<GfpProxyCandidate> selectDiverseCandidates(Iterable<GfpProxyCandidate> cand
   final trojan = sorted.where((candidate) => candidate.scheme == 'trojan').toList(growable: false);
   final vmess = sorted.where((candidate) => candidate.scheme == 'vmess').toList(growable: false);
   final other = sorted
-      .where((candidate) => !candidate.reality && candidate.scheme != 'vless' && candidate.scheme != 'trojan' && candidate.scheme != 'vmess')
+      .where(
+        (candidate) =>
+            !candidate.reality &&
+            candidate.scheme != 'vless' &&
+            candidate.scheme != 'trojan' &&
+            candidate.scheme != 'vmess',
+      )
       .toList(growable: false);
 
   // Reality remains the majority, but every supported protocol has a real
