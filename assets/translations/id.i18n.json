@@ -1,6 +1,6 @@
 {
   "common": {
-    "appTitle": "Hiddify",
+    "appTitle": "Sod",
     "start": "Mulai",
     "version": "Versi",
     "ok": "Oke",
@@ -97,12 +97,35 @@
   "intro": {
     "banner": "Semua yang Anda butuhkan untuk internet tanpa batasan",
     "termsAndPolicyCaution(rich)": "Dengan melanjutkan, Anda menyetujui ${tap(@:pages.about.termsAndConditions)}",
-    "info(rich)": "Dibuat dengan ❤️ oleh Hiddify - ${tap_source(Sumber Terbuka)} (${tap_license(Lisensi)})"
+    "info(rich)": "Dibangun secara terbuka dari Hiddify - ${tap_source(Kode sumber)} (${tap_license(Lisensi)})"
   },
   "pages": {
     "home": {
       "title": "Beranda",
-      "quickSettings": "Opsi pengaturan cepat"
+      "quickSettings": "Pengaturan cepat",
+      "publicNetwork": "Jaringan publik Sod",
+      "publicNetworkSubtitle": "Dipilih dan diuji otomatis di perangkat ini",
+      "customSourceSubtitle": "Sumber khusus tersimpan",
+      "manageSources": "Ganti sumber",
+      "addCustomSource": "Tambah khusus",
+      "refreshAction": "Cari rute baru",
+      "refreshTitle": "Cari rute publik baru?",
+      "refreshMessage": "Pemindaian lokal mendalam ini mengganti daftar publik saat ini dan dapat menyambungkan ulang VPN. Jalankan saat koneksi aman untuk terputus.",
+      "publicProxyNotice": {
+        "title": "Rute publik memerlukan kehati-hatian",
+        "message": "Proxy publik dioperasikan pihak ketiga. Utamakan HTTPS dan hindari perbankan, kata sandi, atau data rahasia saat terhubung.",
+        "accept": "Saya mengerti"
+      },
+      "scan": {
+        "collecting": "Mengumpulkan rute publik",
+        "testing": "Menguji rute",
+        "validating": "Memeriksa lalu lintas nyata di perangkat ini",
+        "ready": "Rute yang diuji lokal dipilih",
+        "refreshRecommended": "Daftar publik sudah lama. Perbarui saat aman untuk memutus VPN.",
+        "refreshComplete": "Rute baru siap. Sambungkan ulang untuk memvalidasi satu rute.",
+        "noRoute": "Tidak ada rute yang lulus uji lalu lintas lokal",
+        "failed": "Jaringan publik tidak dapat diperbarui"
+      }
     },
     "proxies": {
       "title": "Proxy",
@@ -190,7 +213,8 @@
       "sourceCode": "Kode sumber",
       "telegramChannel": "Saluran Telegram",
       "termsAndConditions": "Syarat dan Ketentuan",
-      "privacyPolicy": "Kebijakan Privasi"
+      "privacyPolicy": "Kebijakan Privasi",
+      "openSourceLicenses": "Lisensi sumber terbuka"
     },
     "settings": {
       "title": "Pengaturan",
@@ -232,6 +256,8 @@
         "memoryLimitMsg": "Aktifkan jika Anda mengalami kesalahan kehabisan memori atau aplikasi sering macet",
         "debugMode": "Mode debug",
         "debugModeMsg": "Mulai ulang aplikasi untuk menerapkan perubahan ini",
+        "showConnectionDetails": "Tampilkan detail koneksi",
+        "showConnectionDetailsMsg": "Tetap tampilkan status pengujian rute lokal setelah pemindaian",
         "logLevel": "Level log",
         "connectionTestUrl": "URL uji koneksi",
         "urlTestInterval": "Interval uji URL",

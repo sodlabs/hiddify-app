@@ -1,6 +1,6 @@
 {
   "common": {
-    "appTitle": "Hiddify",
+    "appTitle": "Sod",
     "start": "ابدأ",
     "version": "الإصدار",
     "ok": "موافق",
@@ -103,12 +103,35 @@
   "intro": {
     "banner": "كل ما تحتاجه لإنترنت بلا قيود",
     "termsAndPolicyCaution(rich)": "بالاستمرار، أنت توافق على ${tap(@:pages.about.termsAndConditions)}",
-    "info(rich)": "صُنع بـ ❤️ بواسطة Hiddify - ${tap_source(مفتوح المصدر)} (${tap_license(الرخصة)})"
+    "info(rich)": "مبني بصورة مفتوحة على Hiddify - ${tap_source(الشيفرة المصدرية)} (${tap_license(الرخصة)})"
   },
   "pages": {
     "home": {
       "title": "الرئيسية",
-      "quickSettings": "خيارات الإعدادات السريعة"
+      "quickSettings": "الإعدادات السريعة",
+      "publicNetwork": "شبكة Sod العامة",
+      "publicNetworkSubtitle": "يتم اختيارها واختبارها تلقائيًا على هذا الجهاز",
+      "customSourceSubtitle": "مصدر مخصص محفوظ",
+      "manageSources": "تغيير المصدر",
+      "addCustomSource": "إضافة مصدر مخصص",
+      "refreshAction": "البحث عن مسارات جديدة",
+      "refreshTitle": "البحث عن مسارات عامة جديدة؟",
+      "refreshMessage": "يستبدل هذا الفحص المحلي المتعمق القائمة العامة الحالية وقد يعيد اتصال VPN. شغّله عندما يكون قطع الاتصال آمنًا.",
+      "publicProxyNotice": {
+        "title": "المسارات العامة تتطلب الحذر",
+        "message": "يشغّل أطراف خارجية الوكلاء العامين. استخدم HTTPS وتجنب الخدمات المصرفية وكلمات المرور والبيانات السرية أثناء الاتصال.",
+        "accept": "فهمت"
+      },
+      "scan": {
+        "collecting": "جمع المسارات العامة",
+        "testing": "اختبار المسارات",
+        "validating": "فحص حركة المرور الفعلية على هذا الجهاز",
+        "ready": "تم اختيار مسار مختبر محليًا",
+        "refreshRecommended": "القائمة العامة قديمة. حدّثها عندما يكون قطع VPN آمنًا.",
+        "refreshComplete": "المسارات الجديدة جاهزة. أعد الاتصال للتحقق من أحدها.",
+        "noRoute": "لم يجتز أي مسار اختبار حركة المرور المحلي",
+        "failed": "تعذر تحديث الشبكة العامة"
+      }
     },
     "proxies": {
       "title": "البروكسيات",
@@ -196,7 +219,8 @@
       "sourceCode": "الكود المصدري",
       "telegramChannel": "قناة التيليجرام",
       "termsAndConditions": "الشروط والأحكام",
-      "privacyPolicy": "سياسة الخصوصية"
+      "privacyPolicy": "سياسة الخصوصية",
+      "openSourceLicenses": "تراخيص المصادر المفتوحة"
     },
     "settings": {
       "title": "الإعدادات",
@@ -238,6 +262,8 @@
         "memoryLimitMsg": "قم بتفعيل هذا الخيار إذا كنت تواجه أخطاء نفاد الذاكرة أو تعطل التطبيق بشكل متكرر",
         "debugMode": "وضع التصحيح",
         "debugModeMsg": "أعد تشغيل التطبيق لتطبيق هذا التغيير",
+        "showConnectionDetails": "إظهار تفاصيل الاتصال",
+        "showConnectionDetailsMsg": "إبقاء حالة اختبار المسارات المحلية ظاهرة بعد الفحص",
         "logLevel": "مستوى السجل",
         "connectionTestUrl": "رابط اختبار الاتصال",
         "urlTestInterval": "فاصل اختبار الرابط",

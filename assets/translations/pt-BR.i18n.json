@@ -1,6 +1,6 @@
 {
   "common": {
-    "appTitle": "Hiddify",
+    "appTitle": "Sod",
     "start": "Começar",
     "version": "Versão",
     "ok": "OK",
@@ -97,12 +97,35 @@
   "intro": {
     "banner": "Tudo o que você precisa para uma internet sem restrições",
     "termsAndPolicyCaution(rich)": "Ao continuar, você concorda com os ${tap(@:pages.about.termsAndConditions)}",
-    "info(rich)": "Feito com ❤️ por Hiddify - ${tap_source(Código Aberto)} (${tap_license(Licença)})"
+    "info(rich)": "Construído abertamente a partir do Hiddify - ${tap_source(Código-fonte)} (${tap_license(Licença)})"
   },
   "pages": {
     "home": {
       "title": "Início",
-      "quickSettings": "Opções de configurações rápidas"
+      "quickSettings": "Configurações rápidas",
+      "publicNetwork": "Rede pública Sod",
+      "publicNetworkSubtitle": "Selecionada e testada automaticamente neste dispositivo",
+      "customSourceSubtitle": "Fonte personalizada salva",
+      "manageSources": "Alterar fonte",
+      "addCustomSource": "Adicionar personalizada",
+      "refreshAction": "Buscar novas rotas",
+      "refreshTitle": "Buscar novas rotas públicas?",
+      "refreshMessage": "Esta verificação local profunda substitui a lista pública atual e pode reconectar a VPN. Execute quando for seguro interromper a conexão.",
+      "publicProxyNotice": {
+        "title": "Rotas públicas exigem cuidado",
+        "message": "Proxies públicos são operados por terceiros. Prefira HTTPS e evite bancos, senhas ou dados confidenciais enquanto estiver conectado.",
+        "accept": "Entendi"
+      },
+      "scan": {
+        "collecting": "Coletando rotas públicas",
+        "testing": "Testando rotas",
+        "validating": "Verificando tráfego real neste dispositivo",
+        "ready": "Rota testada localmente selecionada",
+        "refreshRecommended": "A lista pública está antiga. Atualize quando for seguro interromper a VPN.",
+        "refreshComplete": "Novas rotas estão prontas. Reconecte para validar uma.",
+        "noRoute": "Nenhuma rota passou no teste de tráfego local",
+        "failed": "Não foi possível atualizar a rede pública"
+      }
     },
     "proxies": {
       "title": "Proxies",
@@ -190,7 +213,8 @@
       "sourceCode": "Código-fonte",
       "telegramChannel": "Canal do Telegram",
       "termsAndConditions": "Termos e Condições",
-      "privacyPolicy": "Política de Privacidade"
+      "privacyPolicy": "Política de Privacidade",
+      "openSourceLicenses": "Licenças de código aberto"
     },
     "settings": {
       "title": "Configurações",
@@ -232,6 +256,8 @@
         "memoryLimitMsg": "Ative se estiver enfrentando erros de falta de memória ou travamentos frequentes do aplicativo",
         "debugMode": "Modo de depuração",
         "debugModeMsg": "Reinicie o aplicativo para aplicar esta alteração",
+        "showConnectionDetails": "Mostrar detalhes da conexão",
+        "showConnectionDetailsMsg": "Manter visível o status dos testes locais após a verificação",
         "logLevel": "Nível de registro",
         "connectionTestUrl": "URL de teste de conexão",
         "urlTestInterval": "Intervalo de teste de URL",

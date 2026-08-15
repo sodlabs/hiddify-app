@@ -1,6 +1,6 @@
 {
   "common": {
-    "appTitle": "Hiddify",
+    "appTitle": "Sod",
     "start": "开始",
     "version": "版本",
     "ok": "确定",
@@ -97,12 +97,35 @@
   "intro": {
     "banner": "畅享无限制网络的所需一切",
     "termsAndPolicyCaution(rich)": "继续即表示您同意 ${tap(@:pages.about.termsAndConditions)}",
-    "info(rich)": "由 Hiddify 用 ❤️ 制作 - ${tap_source(开源)} (${tap_license(许可证)})"
+    "info(rich)": "基于 Hiddify 开放构建 - ${tap_source(源代码)} (${tap_license(许可证)})"
   },
   "pages": {
     "home": {
       "title": "主页",
-      "quickSettings": "快速设置选项"
+      "quickSettings": "快速设置",
+      "publicNetwork": "Sod 公共网络",
+      "publicNetworkSubtitle": "已在此设备上自动选择并测试",
+      "customSourceSubtitle": "已保存的自定义来源",
+      "manageSources": "更改来源",
+      "addCustomSource": "添加自定义来源",
+      "refreshAction": "查找新线路",
+      "refreshTitle": "查找新的公共线路？",
+      "refreshMessage": "此深度本地扫描会替换当前公共列表，并可能重新连接 VPN。请在可以安全中断连接时运行。",
+      "publicProxyNotice": {
+        "title": "使用公共线路时请格外谨慎",
+        "message": "公共代理由第三方运营。请优先使用 HTTPS，连接期间避免银行业务、密码或机密数据。",
+        "accept": "我明白了"
+      },
+      "scan": {
+        "collecting": "正在收集公共线路",
+        "testing": "正在测试线路",
+        "validating": "正在此设备上检查真实流量",
+        "ready": "已选择本地测试通过的线路",
+        "refreshRecommended": "公共列表已过期。请在可以安全中断 VPN 时刷新。",
+        "refreshComplete": "新线路已就绪。请重新连接以验证其中一条。",
+        "noRoute": "没有线路通过本地流量测试",
+        "failed": "无法刷新公共网络"
+      }
     },
     "proxies": {
       "title": "代理",
@@ -190,7 +213,8 @@
       "sourceCode": "源代码",
       "telegramChannel": "Telegram 频道",
       "termsAndConditions": "条款与条件",
-      "privacyPolicy": "隐私政策"
+      "privacyPolicy": "隐私政策",
+      "openSourceLicenses": "开源许可证"
     },
     "settings": {
       "title": "设置",
@@ -232,6 +256,8 @@
         "memoryLimitMsg": "如果您遇到内存不足错误或应用频繁崩溃，请启用此选项",
         "debugMode": "调试模式",
         "debugModeMsg": "重启应用以应用此更改",
+        "showConnectionDetails": "显示连接详情",
+        "showConnectionDetailsMsg": "扫描完成后继续显示本地线路测试状态",
         "logLevel": "日志级别",
         "connectionTestUrl": "连接测试 URL",
         "urlTestInterval": "URL 测试间隔",

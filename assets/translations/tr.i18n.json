@@ -1,6 +1,6 @@
 {
   "common": {
-    "appTitle": "Hiddify",
+    "appTitle": "Sod",
     "start": "Başlat",
     "version": "Sürüm",
     "ok": "Tamam",
@@ -97,12 +97,35 @@
   "intro": {
     "banner": "Sınırsız bir internet için ihtiyacınız olan her şey",
     "termsAndPolicyCaution(rich)": "Devam ederek ${tap(@:pages.about.termsAndConditions)} kabul etmiş olursunuz",
-    "info(rich)": "Hiddify tarafından ❤️ ile yapıldı - ${tap_source(Açık Kaynak)} (${tap_license(Licence)})"
+    "info(rich)": "Hiddify temel alınarak açık biçimde geliştirildi - ${tap_source(Kaynak kodu)} (${tap_license(Licence)})"
   },
   "pages": {
     "home": {
       "title": "Ana Sayfa",
-      "quickSettings": "Hızlı ayar seçenekleri"
+      "quickSettings": "Hızlı ayarlar",
+      "publicNetwork": "Sod genel ağı",
+      "publicNetworkSubtitle": "Bu cihazda otomatik olarak seçildi ve test edildi",
+      "customSourceSubtitle": "Kaydedilmiş özel kaynak",
+      "manageSources": "Kaynağı değiştir",
+      "addCustomSource": "Özel kaynak ekle",
+      "refreshAction": "Yeni rotalar bul",
+      "refreshTitle": "Yeni genel rotalar bulunsun mu?",
+      "refreshMessage": "Bu derin yerel tarama mevcut genel listeyi değiştirir ve VPN’i yeniden bağlayabilir. Bağlantının kesilmesi güvenliyken çalıştırın.",
+      "publicProxyNotice": {
+        "title": "Genel rotalar dikkat gerektirir",
+        "message": "Genel proxy’ler üçüncü taraflarca işletilir. HTTPS kullanın ve bağlıyken bankacılık, parola veya gizli verilerden kaçının.",
+        "accept": "Anladım"
+      },
+      "scan": {
+        "collecting": "Genel rotalar toplanıyor",
+        "testing": "Rotalar test ediliyor",
+        "validating": "Bu cihazdaki gerçek trafik kontrol ediliyor",
+        "ready": "Yerel olarak test edilen rota seçildi",
+        "refreshRecommended": "Genel liste eski. VPN’i kesmek güvenliyken yenileyin.",
+        "refreshComplete": "Yeni rotalar hazır. Birini doğrulamak için yeniden bağlanın.",
+        "noRoute": "Hiçbir rota yerel trafik testini geçemedi",
+        "failed": "Genel ağ yenilenemedi"
+      }
     },
     "proxies": {
       "title": "Proxy'ler",
@@ -190,7 +213,8 @@
       "sourceCode": "Kaynak kodu",
       "telegramChannel": "Telegram kanalı",
       "termsAndConditions": "Şartlar ve Koşullar",
-      "privacyPolicy": "Gizlilik Politikası"
+      "privacyPolicy": "Gizlilik Politikası",
+      "openSourceLicenses": "Açık kaynak lisansları"
     },
     "settings": {
       "title": "Ayarlar",
@@ -232,6 +256,8 @@
         "memoryLimitMsg": "Bellek yetersizliği hataları veya sık uygulama çökmeleri yaşıyorsanız etkinleştirin",
         "debugMode": "Hata ayıklama modu",
         "debugModeMsg": "Bu değişikliği uygulamak için uygulamayı yeniden başlatın",
+        "showConnectionDetails": "Bağlantı ayrıntılarını göster",
+        "showConnectionDetailsMsg": "Taramadan sonra yerel rota test durumunu görünür tut",
         "logLevel": "Log seviyesi",
         "connectionTestUrl": "Bağlantı testi URL'si",
         "urlTestInterval": "URL testi aralığı",

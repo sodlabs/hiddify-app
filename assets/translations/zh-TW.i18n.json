@@ -1,6 +1,6 @@
 {
   "common": {
-    "appTitle": "Hiddify",
+    "appTitle": "Sod",
     "start": "開始",
     "version": "版本",
     "ok": "確定",
@@ -97,12 +97,35 @@
   "intro": {
     "banner": "暢享無限制網路的所需一切",
     "termsAndPolicyCaution(rich)": "繼續即表示您同意 ${tap(@:pages.about.termsAndConditions)}",
-    "info(rich)": "由 Hiddify 以 ❤️ 製作 - ${tap_source(開源)} (${tap_license(授權)})"
+    "info(rich)": "以 Hiddify 為基礎開放建置 - ${tap_source(原始碼)} (${tap_license(授權)})"
   },
   "pages": {
     "home": {
       "title": "首頁",
-      "quickSettings": "快速設定選項"
+      "quickSettings": "快速設定",
+      "publicNetwork": "Sod 公共網路",
+      "publicNetworkSubtitle": "已在此裝置上自動選取並測試",
+      "customSourceSubtitle": "已儲存的自訂來源",
+      "manageSources": "變更來源",
+      "addCustomSource": "新增自訂來源",
+      "refreshAction": "尋找新路線",
+      "refreshTitle": "尋找新的公共路線？",
+      "refreshMessage": "此深度本機掃描會取代目前的公共清單，並可能重新連線 VPN。請在可安全中斷連線時執行。",
+      "publicProxyNotice": {
+        "title": "使用公共路線時請格外謹慎",
+        "message": "公共代理由第三方營運。請優先使用 HTTPS，連線期間避免銀行服務、密碼或機密資料。",
+        "accept": "我明白了"
+      },
+      "scan": {
+        "collecting": "正在收集公共路線",
+        "testing": "正在測試路線",
+        "validating": "正在此裝置上檢查真實流量",
+        "ready": "已選取本機測試通過的路線",
+        "refreshRecommended": "公共清單已過期。請在可安全中斷 VPN 時重新整理。",
+        "refreshComplete": "新路線已就緒。請重新連線以驗證其中一條。",
+        "noRoute": "沒有路線通過本機流量測試",
+        "failed": "無法重新整理公共網路"
+      }
     },
     "proxies": {
       "title": "代理",
@@ -190,7 +213,8 @@
       "sourceCode": "原始碼",
       "telegramChannel": "Telegram 頻道",
       "termsAndConditions": "條款與條件",
-      "privacyPolicy": "隱私權政策"
+      "privacyPolicy": "隱私權政策",
+      "openSourceLicenses": "開放原始碼授權"
     },
     "settings": {
       "title": "設定",
@@ -232,6 +256,8 @@
         "memoryLimitMsg": "如果您遇到記憶體不足錯誤或應用程式頻繁崩潰，請啟用此選項",
         "debugMode": "偵錯模式",
         "debugModeMsg": "重新啟動應用程式以套用此變更",
+        "showConnectionDetails": "顯示連線詳細資料",
+        "showConnectionDetailsMsg": "掃描完成後繼續顯示本機路線測試狀態",
         "logLevel": "日誌級別",
         "connectionTestUrl": "連線測試 URL",
         "urlTestInterval": "URL 測試間隔",

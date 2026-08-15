@@ -1,6 +1,6 @@
 {
   "common": {
-    "appTitle": "هیدیفای",
+    "appTitle": "Sod",
     "start": "شروع",
     "version": "نسخه",
     "ok": "باشه",
@@ -97,12 +97,35 @@
   "intro": {
     "banner": "هرآنچه برای اینترنت بدون محدودیت نیاز دارید",
     "termsAndPolicyCaution(rich)": "با ادامه، شما با ${tap(@:pages.about.termsAndConditions)} موافقت می‌کنید",
-    "info(rich)": "ساخته شده با ❤️ توسط هیدیفای - ${tap_source(متن‌باز)} (${tap_license(مجوز)})"
+    "info(rich)": "بر پایه Hiddify و به‌صورت متن‌باز ساخته شده - ${tap_source(کد منبع)} (${tap_license(مجوز)})"
   },
   "pages": {
     "home": {
       "title": "خانه",
-      "quickSettings": "گزینه‌های تنظیمات سریع"
+      "quickSettings": "تنظیمات سریع",
+      "publicNetwork": "شبکه عمومی Sod",
+      "publicNetworkSubtitle": "انتخاب و آزمایش خودکار در این دستگاه",
+      "customSourceSubtitle": "منبع سفارشی ذخیره‌شده",
+      "manageSources": "تغییر منبع",
+      "addCustomSource": "افزودن منبع سفارشی",
+      "refreshAction": "یافتن مسیرهای جدید",
+      "refreshTitle": "مسیرهای عمومی جدید پیدا شود؟",
+      "refreshMessage": "این اسکن عمیق محلی فهرست عمومی فعلی را جایگزین می‌کند و ممکن است VPN را دوباره متصل کند. زمانی اجرا کنید که قطع اتصال مشکلی ایجاد نکند.",
+      "publicProxyNotice": {
+        "title": "مسیرهای عمومی نیاز به احتیاط دارند",
+        "message": "پروکسی‌های عمومی توسط اشخاص ثالث اداره می‌شوند. از HTTPS استفاده کنید و هنگام اتصال از بانکداری، رمز عبور یا داده‌های محرمانه دوری کنید.",
+        "accept": "متوجه شدم"
+      },
+      "scan": {
+        "collecting": "جمع‌آوری مسیرهای عمومی",
+        "testing": "آزمایش مسیرها",
+        "validating": "بررسی ترافیک واقعی در این دستگاه",
+        "ready": "مسیر آزمایش‌شده محلی انتخاب شد",
+        "refreshRecommended": "فهرست عمومی قدیمی است. زمانی که قطع VPN امن است آن را تازه کنید.",
+        "refreshComplete": "مسیرهای جدید آماده‌اند. برای اعتبارسنجی یکی دوباره متصل شوید.",
+        "noRoute": "هیچ مسیری آزمون ترافیک محلی را نگذراند",
+        "failed": "شبکه عمومی به‌روزرسانی نشد"
+      }
     },
     "proxies": {
       "title": "پروکسی‌ها",
@@ -190,7 +213,8 @@
       "sourceCode": "کد منبع",
       "telegramChannel": "کانال تلگرام",
       "termsAndConditions": "شرایط و ضوابط",
-      "privacyPolicy": "سیاست حفظ حریم خصوصی"
+      "privacyPolicy": "سیاست حفظ حریم خصوصی",
+      "openSourceLicenses": "مجوزهای متن‌باز"
     },
     "settings": {
       "title": "تنظیمات",
@@ -232,6 +256,8 @@
         "memoryLimitMsg": "در صورت مواجهه با خطای کمبود حافظه یا بسته‌شدن‌های مکرر برنامه، این گزینه را فعال کنید",
         "debugMode": "حالت اشکال‌زدایی",
         "debugModeMsg": "برای اعمال این تغییر، برنامه را مجدداً راه‌اندازی کنید",
+        "showConnectionDetails": "نمایش جزئیات اتصال",
+        "showConnectionDetailsMsg": "وضعیت آزمایش مسیر محلی پس از اسکن نمایش داده شود",
         "logLevel": "سطح گزارش‌گیری",
         "connectionTestUrl": "URL تست اتصال",
         "urlTestInterval": "فاصله زمانی تست URL",

@@ -1,6 +1,6 @@
 {
   "common": {
-    "appTitle": "Hiddify",
+    "appTitle": "Sod",
     "start": "Commencer",
     "version": "Version",
     "ok": "OK",
@@ -97,12 +97,35 @@
   "intro": {
     "banner": "Tout ce dont vous avez besoin pour un internet sans restrictions",
     "termsAndPolicyCaution(rich)": "En continuant, vous acceptez les ${tap(@:pages.about.termsAndConditions)}",
-    "info(rich)": "Fait avec ❤️ par Hiddify - ${tap_source(Open Source)} (${tap_license(Licence)})"
+    "info(rich)": "Construit ouvertement à partir de Hiddify - ${tap_source(Code source)} (${tap_license(Licence)})"
   },
   "pages": {
     "home": {
       "title": "Accueil",
-      "quickSettings": "Options de réglages rapides"
+      "quickSettings": "Réglages rapides",
+      "publicNetwork": "Réseau public Sod",
+      "publicNetworkSubtitle": "Sélectionné et testé automatiquement sur cet appareil",
+      "customSourceSubtitle": "Source personnalisée enregistrée",
+      "manageSources": "Changer de source",
+      "addCustomSource": "Ajouter une source",
+      "refreshAction": "Trouver de nouvelles routes",
+      "refreshTitle": "Trouver de nouvelles routes publiques ?",
+      "refreshMessage": "Cette analyse locale approfondie remplace la liste publique actuelle et peut reconnecter le VPN. Lancez-la lorsqu’une interruption est sans risque.",
+      "publicProxyNotice": {
+        "title": "Les routes publiques demandent de la prudence",
+        "message": "Les proxys publics sont exploités par des tiers. Préférez HTTPS et évitez les opérations bancaires, mots de passe ou données confidentielles pendant la connexion.",
+        "accept": "J’ai compris"
+      },
+      "scan": {
+        "collecting": "Collecte des routes publiques",
+        "testing": "Test des routes",
+        "validating": "Vérification du trafic réel sur cet appareil",
+        "ready": "Route testée localement sélectionnée",
+        "refreshRecommended": "La liste publique est ancienne. Actualisez-la lorsqu’une interruption du VPN est sans risque.",
+        "refreshComplete": "Les nouvelles routes sont prêtes. Reconnectez-vous pour en valider une.",
+        "noRoute": "Aucune route n’a réussi le test de trafic local",
+        "failed": "Impossible d’actualiser le réseau public"
+      }
     },
     "proxies": {
       "title": "Proxys",
@@ -190,7 +213,8 @@
       "sourceCode": "Code source",
       "telegramChannel": "Canal Telegram",
       "termsAndConditions": "Conditions d'utilisation",
-      "privacyPolicy": "Politique de confidentialité"
+      "privacyPolicy": "Politique de confidentialité",
+      "openSourceLicenses": "Licences open source"
     },
     "settings": {
       "title": "Paramètres",
@@ -232,6 +256,8 @@
         "memoryLimitMsg": "Activer si vous rencontrez des erreurs de mémoire insuffisante ou des plantages fréquents de l'application",
         "debugMode": "Mode de débogage",
         "debugModeMsg": "Redémarrez l'application pour appliquer cette modification",
+        "showConnectionDetails": "Afficher les détails de connexion",
+        "showConnectionDetailsMsg": "Conserver l’état des tests locaux visible après l’analyse",
         "logLevel": "Niveau de journalisation",
         "connectionTestUrl": "URL de test de connexion",
         "urlTestInterval": "Intervalle de test de l'URL",
