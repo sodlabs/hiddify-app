@@ -1,8 +1,3 @@
-// lib/features/gfp/gfp_proxy_models.dart
-//
-// Modèle de candidat, équivalent Dart de ce que produisait
-// gfp-fetcher/src/parseProxies.js côté Node.
-
 class GfpProxyCandidate {
   GfpProxyCandidate({
     required this.scheme,
@@ -11,6 +6,7 @@ class GfpProxyCandidate {
     required this.reality,
     required this.label,
     required this.raw,
+    required this.identityKey,
     this.reachable = false,
     this.latencyMs,
   });
@@ -21,6 +17,7 @@ class GfpProxyCandidate {
   final bool reality;
   final String label;
   final String raw;
+  final String identityKey;
   final bool reachable;
   final int? latencyMs;
 
@@ -32,18 +29,21 @@ class GfpProxyCandidate {
       reality: reality,
       label: label,
       raw: raw,
+      identityKey: identityKey,
       reachable: reachable ?? this.reachable,
       latencyMs: latencyMs ?? this.latencyMs,
     );
   }
 
-  /// Priorité de tri : reality > vless > vmess > trojan > le reste.
-  /// Plus petit = plus prioritaire (même logique que priorityScore côté JS).
+  // Ordre utilisé avant les tests locaux.
   int get priorityScore {
     if (reality) return 0;
-    if (scheme == 'vless') return 1;
-    if (scheme == 'trojan') return 2;
-    if (scheme == 'vmess') return 3;
-    return 4;
+    if (scheme == 'awg') return 1;
+    if (scheme == 'hy2' || scheme == 'hysteria2' || scheme == 'tuic') return 2;
+    if (scheme == 'trojan') return 3;
+    if (scheme == 'ss') return 4;
+    if (scheme == 'vless') return 5;
+    if (scheme == 'vmess') return 6;
+    return 7;
   }
 }

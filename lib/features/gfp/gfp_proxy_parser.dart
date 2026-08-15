@@ -1,16 +1,8 @@
-// lib/features/gfp/gfp_proxy_parser.dart
-//
-// Port Dart de gfp-fetcher/src/parseProxies.js. Même logique : on ne
-// réimplémente pas un parseur complet par protocole, juste ce qu'il faut
-// pour tester la joignabilité et dédupliquer/trier. Le contenu brut de
-// chaque ligne est conservé tel quel pour la subscription finale (hiddify
-// re-parsera lui-même le detail du protocole).
-
 import 'dart:convert';
 
 import 'package:hiddify/features/gfp/gfp_proxy_models.dart';
 
-const Set<String> kSupportedSchemes = {'vless', 'vmess', 'trojan', 'ss', 'hy2', 'hysteria2', 'tuic'};
+const Set<String> kSupportedSchemes = {'vless', 'vmess', 'trojan', 'ss', 'hy2', 'hysteria2', 'tuic', 'awg'};
 
 Uri? _safeParseUri(String line) {
   try {
@@ -42,29 +34,31 @@ GfpProxyCandidate? _parseVmess(String line) {
       reality: false,
       label: config['ps']?.toString().trim() ?? '',
       raw: line,
+      identityKey: 'vmess|${jsonEncode(_canonicalVmessConfig(config))}',
     );
   } catch (_) {
     return null;
   }
 }
 
+Map<String, dynamic> _canonicalVmessConfig(Map<String, dynamic> config) {
+  final normalized = <String, dynamic>{};
+  for (final key in config.keys.where((key) => key != 'ps').toList()..sort()) {
+    normalized[key] = config[key];
+  }
+  return normalized;
+}
+
 bool _isReality(Uri uri) {
   return (uri.queryParameters['security'] ?? '').toLowerCase() == 'reality';
 }
 
-/// Reality requires both the server name used by the TLS camouflage and the
-/// server public key. A TCP port can be open without either value being valid;
-/// keeping such a URI only creates a guaranteed timeout later in the core.
 bool _hasCompleteRealityParameters(Uri uri) {
   final serverName = (uri.queryParameters['sni'] ?? uri.queryParameters['serverName'] ?? '').trim();
   final publicKey = (uri.queryParameters['pbk'] ?? uri.queryParameters['publicKey'] ?? '').trim();
   return serverName.isNotEmpty && publicKey.isNotEmpty;
 }
 
-/// sing-box accepts only the Vision flow name in the Hiddify core version
-/// bundled by this app. Public lists also contain experimental flow names;
-/// forwarding one of them makes the native parser panic and rejects the
-/// entire profile, so reject it before creating the local subscription.
 bool _hasSupportedVlessFlow(Uri uri) {
   final flow = (uri.queryParameters['flow'] ?? '').trim().toLowerCase();
   return flow.isEmpty || flow == 'xtls-rprx-vision';
@@ -79,8 +73,6 @@ String _extractLabel(Uri uri) {
   }
 }
 
-/// @param rawText contenu brut d'un fichier de sources (une URI par ligne)
-/// @param realityOnly ne garder que security=reality (vless)
 List<GfpProxyCandidate> parseProxyList(String rawText, {bool realityOnly = false}) {
   final lines = rawText.split('\n').map((l) => l.trim()).where((l) => l.isNotEmpty);
 
@@ -90,8 +82,7 @@ List<GfpProxyCandidate> parseProxyList(String rawText, {bool realityOnly = false
   for (final line in lines) {
     final vmess = _parseVmess(line);
     if (vmess != null) {
-      final dedupKey = '${vmess.scheme}|${vmess.host}|${vmess.port}';
-      if (!realityOnly && seen.add(dedupKey)) candidates.add(vmess);
+      if (!realityOnly && seen.add(vmess.identityKey)) candidates.add(vmess);
       continue;
     }
 
@@ -101,8 +92,6 @@ List<GfpProxyCandidate> parseProxyList(String rawText, {bool realityOnly = false
     final scheme = uri.scheme.toLowerCase();
     if (!kSupportedSchemes.contains(scheme)) continue;
 
-    // Uri.host retire déjà les crochets IPv6 automatiquement (équivalent
-    // au .replace(/^\[|\]$/g, '') qu'on faisait côté Node).
     final host = uri.host;
     final port = uri.port != 0 ? uri.port : 443;
     if (host.isEmpty) continue;
@@ -112,12 +101,21 @@ List<GfpProxyCandidate> parseProxyList(String rawText, {bool realityOnly = false
     if (reality && !_hasCompleteRealityParameters(uri)) continue;
     if (scheme == 'vless' && !_hasSupportedVlessFlow(uri)) continue;
 
-    final dedupKey = '$scheme|$host|$port';
+    // Le fragment ne change que le nom affiché.
+    final dedupKey = '$scheme|${uri.replace(fragment: '')}';
     if (seen.contains(dedupKey)) continue;
     seen.add(dedupKey);
 
     candidates.add(
-      GfpProxyCandidate(scheme: scheme, host: host, port: port, reality: reality, label: _extractLabel(uri), raw: line),
+      GfpProxyCandidate(
+        scheme: scheme,
+        host: host,
+        port: port,
+        reality: reality,
+        label: _extractLabel(uri),
+        raw: line,
+        identityKey: dedupKey,
+      ),
     );
   }
 
@@ -130,9 +128,6 @@ List<GfpProxyCandidate> sortByPriority(List<GfpProxyCandidate> candidates) {
     final byProtocol = a.priorityScore.compareTo(b.priorityScore);
     if (byProtocol != 0) return byProtocol;
 
-    // Un test TCP/TLS qui réussit ne garantit pas qu'un proxy sera utile,
-    // mais, à protocole égal, commencer par les plus rapides limite la durée
-    // du premier url-test du core.
     return (a.latencyMs ?? 1 << 30).compareTo(b.latencyMs ?? 1 << 30);
   });
   return sorted;

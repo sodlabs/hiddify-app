@@ -1,8 +1,10 @@
 import 'dart:convert';
+import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:hiddify/features/gfp/gfp_proxy_parser.dart';
 import 'package:hiddify/features/gfp/gfp_proxy_service.dart';
+import 'package:hiddify/features/gfp/gfp_proxy_tester.dart';
 
 void main() {
   const reality =
@@ -52,6 +54,56 @@ vless://33333333-3333-3333-3333-333333333333@other.example:443?security=reality&
     final selected = selectDiverseCandidates(candidates, limit: 2);
 
     expect(selected.map((candidate) => candidate.host).toSet(), hasLength(2));
+  });
+
+  test('keeps distinct credentials and Reality settings on the same socket', () {
+    final candidates = parseProxyList('''
+vless://11111111-1111-1111-1111-111111111111@reality.example:443?security=reality&sni=cdn.example&pbk=first-key#first
+vless://22222222-2222-2222-2222-222222222222@reality.example:443?security=reality&sni=cdn.example&pbk=second-key#second
+''');
+
+    expect(candidates, hasLength(2));
+    expect(candidates.map((candidate) => candidate.identityKey).toSet(), hasLength(2));
+  });
+
+  test('ignores display-only differences when deduplicating links', () {
+    final candidates = parseProxyList('''
+vless://11111111-1111-1111-1111-111111111111@reality.example:443?security=reality&sni=cdn.example&pbk=public-key#first-name
+vless://11111111-1111-1111-1111-111111111111@reality.example:443?security=reality&sni=cdn.example&pbk=public-key#second-name
+''');
+
+    expect(candidates, hasLength(1));
+  });
+
+  test('defers UDP protocol reachability to the core', () async {
+    final candidates = parseProxyList('''
+hy2://password@hysteria.example:443?sni=cdn.example#hysteria
+awg://key@awg.example:51820#amnezia
+''');
+
+    expect(candidates, hasLength(2));
+    for (final candidate in candidates) {
+      final result = await testCandidate(candidate);
+      expect(result.reachable, isTrue);
+      expect(result.stage, 'core');
+    }
+  });
+
+  test('does not send a standard TLS handshake to Reality', () async {
+    final server = await ServerSocket.bind(InternetAddress.loopbackIPv4, 0);
+    try {
+      final candidate = parseProxyList(
+        'vless://11111111-1111-1111-1111-111111111111@127.0.0.1:${server.port}'
+        '?security=reality&sni=cdn.example&pbk=public-key',
+      ).single;
+
+      final result = await testCandidate(candidate);
+
+      expect(result.reachable, isTrue);
+      expect(result.stage, 'tcp');
+    } finally {
+      await server.close();
+    }
   });
 
   test('reserves fallback protocols when Reality candidates fill the list', () {

@@ -3,21 +3,13 @@ import 'dart:io';
 
 import 'package:hiddify/core/model/constants.dart';
 import 'package:hiddify/hiddifycore/generated/v2/hcommon/common.pb.dart';
+import 'package:hiddify/hiddifycore/generated/v2/hcore/hcore.pb.dart';
 import 'package:hiddify/hiddifycore/hiddify_core_service.dart';
 
-/// A second, local-only validation layer for public proxy lists.
-///
-/// sing-box URL tests use a lightweight HTTP HEAD request. A public endpoint
-/// can answer that request and still reset or throttle real traffic seconds
-/// later. This validator selects only candidates already accepted by the
-/// local core, then requires one to transfer a small public payload through
-/// the core's local mixed proxy. Nothing is reported or uploaded.
+// Confirme une route avec un vrai transfert local.
 class GfpSustainedProxyValidator {
-  const GfpSustainedProxyValidator({required this.mixedPort, this.maxCandidates = 4});
+  const GfpSustainedProxyValidator({required this.mixedPort, this.maxCandidates = 10});
 
-  // Enough to prove that a route can receive a real response, while staying
-  // practical for public proxies that are usable but deliberately throttled.
-  // The core's URL test and the TCP/TLS preflight already reject dead routes.
   static const _minimumBytes = 8 * 1024;
   static final _testUrls = <Uri>[
     Uri.parse('https://speed.cloudflare.com/__down?bytes=$_minimumBytes'),
@@ -27,45 +19,60 @@ class GfpSustainedProxyValidator {
   final int mixedPort;
   final int maxCandidates;
 
-  /// Returns the selected outbound tag, or null when no already URL-tested
-  /// candidate completes a small real transfer.
-  Future<String?> selectStableOutbound(HiddifyCoreService core) async {
+  Future<List<String>> candidateOutboundTags(HiddifyCoreService core, {int? limit}) async {
     final groups = await core.core.bgClient.outboundsInfo(Empty()).first.timeout(const Duration(seconds: 45));
-    // `balance` reports direct endpoint URL tests but is a round-robin
-    // balancer. `select` is the final selector used by all routed traffic.
-    // Selecting on `balance` therefore leaves a dead endpoint free to be
-    // picked for the next connection.
+    if (groups.items.isEmpty) return const [];
+    final tags = _candidateGroup(groups.items).items.map((candidate) => candidate.tag);
+    return limit == null ? tags.toList() : tags.take(limit).toList();
+  }
+
+  Future<Set<String>> healthyOutboundTags(HiddifyCoreService core) async {
+    final groups = await core.core.bgClient.outboundsInfo(Empty()).first.timeout(const Duration(seconds: 45));
+    if (groups.items.isEmpty) return const {};
+    final group = _candidateGroup(groups.items);
+    return group.items.where(_hasFreshSuccessfulTest).map((candidate) => candidate.tag).toSet();
+  }
+
+  Future<bool> canTransferActiveRoute() => _canTransferPayload();
+
+  Future<String?> selectStableOutbound(
+    HiddifyCoreService core, {
+    Set<String> excludedTags = const {},
+    void Function(String tag)? onAttempt,
+  }) async {
+    final groups = await core.core.bgClient.outboundsInfo(Empty()).first.timeout(const Duration(seconds: 45));
     if (groups.items.isEmpty) return null;
-    final candidateGroup = groups.items.firstWhere(
-      (group) =>
-          group.tag == 'balance' &&
-          group.items.any((candidate) => ConnectionConst.isValidDelay(candidate.urlTestDelay)),
-      orElse: () => groups.items.firstWhere(
-        (group) =>
-            group.selectable && group.items.any((candidate) => ConnectionConst.isValidDelay(candidate.urlTestDelay)),
-        orElse: () => groups.items.first,
-      ),
-    );
-    final selectionGroup = groups.items.firstWhere(
-      // `select` is the configured final route selector. It is actionable
-      // even when the core does not mark it as selectable in OutboundsInfo.
-      (group) => group.tag == 'select',
-      orElse: () => candidateGroup,
-    );
+    final candidateGroup = _candidateGroup(groups.items);
+    final selectionGroup = groups.items.firstWhere((group) => group.tag == 'select', orElse: () => candidateGroup);
 
     final candidates =
         candidateGroup.items
-            .where((candidate) => ConnectionConst.isValidDelay(candidate.urlTestDelay))
+            .where((candidate) => _hasFreshSuccessfulTest(candidate) && !excludedTags.contains(candidate.tag))
             .toList(growable: false)
           ..sort((a, b) => a.urlTestDelay.compareTo(b.urlTestDelay));
 
     for (final candidate in candidates.take(maxCandidates)) {
+      onAttempt?.call(candidate.tag);
       final wasSelected = await _selectCandidate(core, selectionGroup.tag, candidate.tag);
       if (!wasSelected) continue;
 
       if (await _canTransferPayload()) return candidate.tag;
     }
     return null;
+  }
+
+  OutboundGroup _candidateGroup(List<OutboundGroup> groups) {
+    return groups.firstWhere(
+      (group) => group.tag == 'balance' && group.items.isNotEmpty,
+      orElse: () =>
+          groups.firstWhere((group) => group.selectable && group.items.isNotEmpty, orElse: () => groups.first),
+    );
+  }
+
+  bool _hasFreshSuccessfulTest(OutboundInfo candidate) {
+    if (!ConnectionConst.isValidDelay(candidate.urlTestDelay) || !candidate.hasUrlTestTime()) return false;
+    final age = DateTime.now().toUtc().difference(candidate.urlTestTime.toDateTime());
+    return age >= const Duration(minutes: -1) && age <= const Duration(minutes: 5);
   }
 
   Future<bool> _selectCandidate(HiddifyCoreService core, String groupTag, String candidateTag) async {

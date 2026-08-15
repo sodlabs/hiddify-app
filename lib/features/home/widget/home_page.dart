@@ -1,5 +1,3 @@
-import 'dart:async';
-
 import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:dartx/dartx.dart';
 import 'package:flutter/material.dart';
@@ -10,20 +8,16 @@ import 'package:hiddify/core/preferences/general_preferences.dart';
 import 'package:hiddify/core/router/bottom_sheets/bottom_sheets_notifier.dart';
 import 'package:hiddify/features/connection/model/connection_status.dart';
 import 'package:hiddify/features/connection/notifier/connection_notifier.dart';
+import 'package:hiddify/features/gfp/gfp_health_monitor.dart';
 import 'package:hiddify/features/gfp/gfp_proxy_service.dart';
-import 'package:hiddify/features/gfp/gfp_sustained_proxy_validator.dart';
 import 'package:hiddify/features/home/widget/connection_button.dart';
 import 'package:hiddify/features/home/widget/third_party_warning_banner.dart';
 import 'package:hiddify/features/profile/data/profile_data_providers.dart';
-import 'package:hiddify/features/profile/data/profile_repository.dart';
 import 'package:hiddify/features/profile/model/profile_entity.dart';
 import 'package:hiddify/features/profile/notifier/active_profile_notifier.dart';
 import 'package:hiddify/features/proxy/active/active_proxy_card.dart';
 import 'package:hiddify/features/proxy/active/active_proxy_delay_indicator.dart';
-import 'package:hiddify/features/settings/data/config_option_repository.dart';
 import 'package:hiddify/gen/assets.gen.dart';
-import 'package:hiddify/hiddifycore/hiddify_core_service_provider.dart';
-import 'package:hiddify/singbox/model/core_status.dart';
 import 'package:hooks_riverpod/hooks_riverpod.dart';
 
 class HomePage extends HookConsumerWidget {
@@ -33,14 +27,13 @@ class HomePage extends HookConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final theme = Theme.of(context);
     final t = ref.watch(translationsProvider).requireValue;
-    // final hasAnyProfile = ref.watch(hasAnyProfileProvider);
     final activeProfile = ref.watch(activeProfileProvider);
 
-    // 100% client-side: on ne pointe plus vers une URL de subscription
-    // hébergée par nous. L'app fetch/teste elle-même les listes publiques
-    // gfpcom, en local.
     final gfpError = useState<String?>(null);
     final gfpStatus = useState<String>('idle');
+    ref.listen(gfpHealthStatusProvider, (_, next) {
+      if (next != 'idle') gfpStatus.value = next;
+    });
 
     useEffect(() {
       Future<void> run() async {
@@ -53,9 +46,7 @@ class HomePage extends HookConsumerWidget {
           try {
             final either = await repo.watchAll().first;
             allProfiles = either.getOrElse((_) => <ProfileEntity>[]);
-          } catch (_) {
-            // pas grave, on retentera au prochain lancement
-          }
+          } catch (_) {}
 
           final existing = allProfiles
               .where(
@@ -66,7 +57,7 @@ class HomePage extends HookConsumerWidget {
 
           if (existing == null) {
             gfpStatus.value = 'fetching';
-            final cached = await service.loadLastKnownGood();
+            final cached = await service.loadFreshCache();
             final content = cached ?? await _refreshForCurrentNetwork(service, gfpStatus);
             gfpStatus.value = 'adding profile';
             final result = await repo.addLocal(content).run();
@@ -81,9 +72,7 @@ class HomePage extends HookConsumerWidget {
               },
             );
           } else {
-            // Never replace a live public-proxy profile behind the user's
-            // back: importing a new list can restart the core and interrupt
-            // an active tunnel. We only surface a recommendation.
+            // Ne pas interrompre une connexion active pour actualiser la liste.
             final fresh = await service.loadFreshCache(maxAge: const Duration(hours: 3, minutes: 30));
             if (fresh == null) {
               gfpStatus.value = 'refresh recommended — tap the refresh button';
@@ -99,21 +88,6 @@ class HomePage extends HookConsumerWidget {
 
       run();
       return null;
-    }, const []);
-
-    // The upstream default selector is a round-robin balancer. With public
-    // lists it can send each new connection to a different, already-dead
-    // endpoint. Once the core starts, keep this auto profile on its local
-    // lowest-delay group instead; the core still performs every handshake and
-    // URL test on the user's own network.
-    useEffect(() {
-      final core = ref.read(hiddifyCoreServiceProvider);
-      final subscription = core.statusController.stream.where((status) => status is CoreStarted).listen((_) {
-        unawaited(_selectLocalLowestProxy(ref, gfpStatus));
-      });
-      return () {
-        unawaited(subscription.cancel());
-      };
     }, const []);
 
     Future<void> confirmAndRefresh() async {
@@ -425,17 +399,11 @@ Future<String> _refreshForCurrentNetwork(
   final networks = await Connectivity().checkConnectivity();
   final onWifi = networks.contains(ConnectivityResult.wifi) || networks.contains(ConnectivityResult.ethernet);
 
-  // Les bornes évitent les pics de mémoire/file-descriptors qui faisaient
-  // tomber le service Android avec des centaines d'outbounds. Elles restent
-  // plus généreuses en Wi-Fi, sans faire de scan sans limite sur le téléphone.
+  // Le Wi-Fi permet un scan plus large sans charger inutilement le téléphone.
   return service.refresh(
-    // A public profile with hundreds of outbounds makes sing-box parse and
-    // URL-test all of them at startup. That is especially costly on Android
-    // and was enough to make some devices kill the app/service. A small,
-    // diverse set is then subjected to the stronger in-core transfer check.
-    maxCandidatesToTest: deepScan ? (onWifi ? 1000 : 240) : (onWifi ? 96 : 48),
-    concurrency: deepScan ? (onWifi ? 12 : 6) : (onWifi ? 8 : 4),
-    maxFinal: deepScan ? 20 : 12,
+    maxCandidatesToTest: deepScan ? (onWifi ? 1000 : 240) : (onWifi ? 64 : 40),
+    concurrency: deepScan ? (onWifi ? 12 : 6) : (onWifi ? 10 : 6),
+    maxFinal: deepScan ? 32 : 24,
     onProgress: (done, total) => status.value = 'test $done/$total',
   );
 }
@@ -474,56 +442,6 @@ Future<void> _refreshGfpProfileManually(
   } catch (e, st) {
     debugPrint('sodlab manual refresh error: $e\n$st');
     error.value = 'refresh failed: $e';
-  }
-}
-
-// Kept as a recovery helper for future non-disruptive update paths.
-// ignore: unused_element
-Future<void> _updateExistingProfile(
-  ProfileRepository repo,
-  ProfileEntity profile,
-  GfpProxyService service,
-  ValueNotifier<String> status,
-) async {
-  try {
-    final content = await _refreshForCurrentNetwork(service, status);
-    final result = await repo.offlineUpdate(profile, content).run();
-    await result.match((_) => Future<void>.value(), (_) => service.saveValidatedCache(content));
-  } catch (_) {
-    // Le profil précédent et validé reste disponible hors-ligne.
-  }
-}
-
-Future<void> _selectLocalLowestProxy(WidgetRef ref, ValueNotifier<String> status) async {
-  final profile = ref.read(activeProfileProvider).valueOrNull;
-  if (profile == null || !isGfpProfileName(_profileName(profile))) return;
-
-  try {
-    status.value = 'waiting for local protocol tests';
-    // sing-box starts its own URL tests asynchronously. Waiting avoids treating
-    // the initial zero/failed delay values as usable routes.
-    await Future<void>.delayed(const Duration(seconds: 30));
-    final stillActive = ref.read(activeProfileProvider).valueOrNull;
-    if (stillActive == null || !isGfpProfileName(_profileName(stillActive))) return;
-
-    status.value = 'checking real local transfer';
-    final core = ref.read(hiddifyCoreServiceProvider);
-    final validator = GfpSustainedProxyValidator(mixedPort: ref.read(ConfigOptions.mixedPort));
-    final stableTag = await validator.selectStableOutbound(core);
-    if (stableTag != null) {
-      status.value = 'using locally verified route';
-      return;
-    }
-
-    // Do not mark a route as usable when its full proxied transfer failed.
-    // Retaining the current selection keeps the connection state honest and
-    // avoids promoting another TCP-only false positive.
-    status.value = 'no locally verified route';
-  } catch (e, st) {
-    // The user may stop the VPN or switch profile during the local check. This
-    // must remain a failed validation, never an uncaught app-level exception.
-    debugPrint('sodlab local route validation error: $e\n$st');
-    status.value = 'local route validation stopped';
   }
 }
 
