@@ -301,11 +301,11 @@ windows-zip-release:
 	$(YELLOW)Post-processing Windows portable$(DONE); \
 	cd "$$ZIP_DIR"; \
 	$(BLUE)Extracting and Repacking...$(DONE); \
-	mkdir -p Hiddify; \
-	unzip -q "$$ZIP_FILE" -d Hiddify/; \
+	mkdir -p Sod; \
+	unzip -q "$$ZIP_FILE" -d Sod/; \
 	rm "$$ZIP_FILE"; \
-	tar -a -cf "$$FILE_NAME.zip" Hiddify; \
-	rm -rf Hiddify; \
+	tar -a -cf "$$FILE_NAME.zip" Sod; \
+	rm -rf Sod; \
 	$(GREEN)Successful$(DONE)
 
 windows-exe-release:
@@ -534,9 +534,8 @@ release: # Create a new tag for release.
 
 
 
-ios-temp-prepare: 
+ios-temp-prepare:
 	make ios-prepare
 	flutter build ios-framework
 	cd ios
 	pod install
-	

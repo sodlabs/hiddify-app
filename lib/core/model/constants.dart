@@ -4,12 +4,12 @@ import 'package:hiddify/utils/utils.dart';
 
 abstract class Constants {
   static const appName = "Sod";
-  static const githubUrl = "https://github.com/sodlabs/hiddify-app";
-  static const licenseUrl = "https://github.com/sodlabs/hiddify-app/blob/main/LICENSE.md";
-  static const githubReleasesApiUrl = "https://api.github.com/repos/sodlabs/hiddify-app/releases";
-  static const githubLatestReleaseUrl = "https://github.com/sodlabs/hiddify-app/releases/latest";
-  static const appCastUrl = "https://raw.githubusercontent.com/sodlabs/hiddify-app/main/appcast.xml";
-  static const privacyPolicyUrl = "https://github.com/sodlabs/hiddify-app/blob/main/PRIVACY.md";
+  static const githubUrl = "https://github.com/sodlabs/sod-app";
+  static const licenseUrl = "https://github.com/sodlabs/sod-app/blob/main/LICENSE.md";
+  static const githubReleasesApiUrl = "https://api.github.com/repos/sodlabs/sod-app/releases";
+  static const githubLatestReleaseUrl = "https://github.com/sodlabs/sod-app/releases/latest";
+  static const appCastUrl = "https://raw.githubusercontent.com/sodlabs/sod-app/main/appcast.xml";
+  static const privacyPolicyUrl = "https://github.com/sodlabs/sod-app/blob/main/PRIVACY.md";
   static const cfWarpPrivacyPolicy = "https://www.cloudflare.com/application/privacypolicy/";
   static const cfWarpTermsOfService = "https://www.cloudflare.com/application/terms/";
 }

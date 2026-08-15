@@ -11,8 +11,7 @@ on:
     branches:
        - main
        - dev
-       - android-fix-action-bug
-       - new-design-v2 
+       - beta-1.0.1
     paths-ignore:
       - '**.md'
       - 'docs/**'

@@ -16,6 +16,6 @@ startup_task:
   parameters: --autostart
 
 # For testing with a self-signed certificate
-# publisher: CN=Hiddify-Test
+# publisher: CN=Sod-Test
 # certificate_password: "1234"
 # install_certificate: "true"
