@@ -331,58 +331,6 @@ jobs:
         run: |
           security delete-keychain $RUNNER_TEMP/app-signing.keychain-db ||echo ok
           rm ~/Library/MobileDevice/Provisioning\ Profiles/*.mobileprovision ||echo ok
-  update-draft:
-    permissions: write-all
-    if: ${{ inputs.upload-artifact }}
-    needs: [build]
-    runs-on: ubuntu-latest
-    steps:
-      - name: checkout
-        uses: actions/checkout@v6
-        with:
-          # by default, it uses a depth of 1
-          # this fetches all history so that we can read each commit
-          fetch-depth: 0
-      - name: Download Artifact
-        uses: actions/download-artifact@v7
-        with:
-          merge-multiple: true
-          pattern: "*"
-          path: ./out/
-          
-
-      - name: Display Files Structure
-        run: ls -R
-        working-directory: ./out
-
-      - name: Delete Current Release Assets
-        uses: 8Mi-Tech/delete-release-assets-action@main
-        with:
-          github_token: ${{ secrets.GITHUB_TOKEN }}
-          tag: 'draft'
-          deleteOnlyFromDrafts: false
-          
-      - name: prepare_release_message
-        continue-on-error: true
-        run: |
-          set +e 
-          sed 's|RELEASE_TAG|${{ env.TAG_NAME }}|g' ./.github/release_message.md > release.md
-          pip install gitchangelog pystache mustache markdown
-          prelease=$(curl --silent "https://api.github.com/repos/${GITHUB_REPOSITORY}/releases/latest" | grep -Po '"tag_name": "\K([^"]*)')
-          echo -e "\n\n<details markdown=1><summary>All changes from $current to the latest commit:</summary>\n\n">>release.md
-          gitchangelog "${prelease}.." >> release.md  2>&1 || echo "Error in gitchangelog"
-          echo -e "\n\n</details>">>release.md
-      - name: Create or Update Draft Release
-        uses: softprops/action-gh-release@v2
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          files: ./out/*
-          name: 'draft'
-          tag_name: 'draft'
-          body_path: './release.md'
-          prerelease: true
-
   upload-release:
     permissions: write-all
     if: ${{ inputs.upload-artifact && inputs.tag-name != 'draft' }}
