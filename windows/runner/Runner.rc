@@ -92,7 +92,7 @@ BEGIN
             VALUE "CompanyName", "Sod Labs" "\0"
             VALUE "FileDescription", "Sod" "\0"
             VALUE "FileVersion", VERSION_AS_STRING "\0"
-            VALUE "InternalName", "hiddify" "\0"
+            VALUE "InternalName", "Sod" "\0"
             VALUE "LegalCopyright", "Hiddify contributors; Sod Labs fork" "\0"
             VALUE "OriginalFilename", "Sod.exe" "\0"
             VALUE "ProductName", "Sod" "\0"

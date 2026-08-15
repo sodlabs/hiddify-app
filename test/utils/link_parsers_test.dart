@@ -2,44 +2,44 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:hiddify/utils/link_parsers.dart';
 
 void main() {
-  group("LinkParser.deep - hiddify scheme", () {
+  group("LinkParser.deep - Sod scheme", () {
     test("path form uses the fragment as the name", () {
-      final link = LinkParser.deep("hiddify://import/https://sub.com/x#MyProfile");
+      final link = LinkParser.deep("sod://import/https://sub.com/x#MyProfile");
       expect(link, isNotNull);
       expect(link!.url, equals("https://sub.com/x"));
       expect(link.name, equals("MyProfile"));
     });
 
     test("path form without a fragment has an empty name", () {
-      final link = LinkParser.deep("hiddify://import/https://sub.com/x");
+      final link = LinkParser.deep("sod://import/https://sub.com/x");
       expect(link, isNotNull);
       expect(link!.url, equals("https://sub.com/x"));
       expect(link.name, equals(""));
     });
 
     test("path form keeps the inner query string", () {
-      final link = LinkParser.deep("hiddify://import/https://sub.com/x?token=abc#Name");
+      final link = LinkParser.deep("sod://import/https://sub.com/x?token=abc#Name");
       expect(link, isNotNull);
       expect(link!.url, equals("https://sub.com/x?token=abc"));
       expect(link.name, equals("Name"));
     });
 
     test("url-param form falls back to the fragment for the name (#8)", () {
-      final link = LinkParser.deep("hiddify://install-config?url=https%3A%2F%2Fsub.com%2Fx#MyProfile");
+      final link = LinkParser.deep("sod://install-config?url=https%3A%2F%2Fsub.com%2Fx#MyProfile");
       expect(link, isNotNull);
       expect(link!.url, equals("https://sub.com/x"));
       expect(link.name, equals("MyProfile"));
     });
 
     test("url-param form prefers an explicit name= over the fragment", () {
-      final link = LinkParser.deep("hiddify://install-config?url=https%3A%2F%2Fsub.com%2Fx&name=Explicit#Fragment");
+      final link = LinkParser.deep("sod://install-config?url=https%3A%2F%2Fsub.com%2Fx&name=Explicit#Fragment");
       expect(link, isNotNull);
       expect(link!.url, equals("https://sub.com/x"));
       expect(link.name, equals("Explicit"));
     });
 
     test("url-param form with neither name= nor fragment has an empty name", () {
-      final link = LinkParser.deep("hiddify://install-config?url=https%3A%2F%2Fsub.com%2Fx");
+      final link = LinkParser.deep("sod://install-config?url=https%3A%2F%2Fsub.com%2Fx");
       expect(link, isNotNull);
       expect(link!.url, equals("https://sub.com/x"));
       expect(link.name, equals(""));
@@ -71,11 +71,18 @@ void main() {
       expect(link.name, equals("Foo"));
     });
 
-    test("hiddify deep link is handled by deep()", () {
-      final link = LinkParser.parse("hiddify://install-config?url=https%3A%2F%2Fsub.com%2Fx#Name");
+    test("Sod deep link is handled by deep()", () {
+      final link = LinkParser.parse("sod://install-config?url=https%3A%2F%2Fsub.com%2Fx#Name");
       expect(link, isNotNull);
       expect(link!.url, equals("https://sub.com/x"));
       expect(link.name, equals("Name"));
+    });
+
+    test("legacy Hiddify deep links remain importable", () {
+      final link = LinkParser.parse("hiddify://install-config?url=https%3A%2F%2Fsub.com%2Fx#Legacy");
+      expect(link, isNotNull);
+      expect(link!.url, equals("https://sub.com/x"));
+      expect(link.name, equals("Legacy"));
     });
   });
 }

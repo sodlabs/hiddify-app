@@ -16,12 +16,12 @@ abstract class LinkParser {
       query: uri.query,
       fragment: name ?? uri.fragment,
     );
-    // return 'hiddify://import/$modifiedUri';
+    // return 'sod://import/$modifiedUri';
     return '$modifiedUri';
   }
 
   // protocols schemas
-  static const protocols = ['hiddify', 'v2ray', 'v2rayn', 'v2rayng', 'clash', 'clashmeta', 'sing-box'];
+  static const protocols = ['sod', 'hiddify', 'v2ray', 'v2rayn', 'v2rayng', 'clash', 'clashmeta', 'sing-box'];
 
   static ProfileLink? parse(String link) {
     return simple(link) ?? deep(link);
@@ -38,9 +38,10 @@ abstract class LinkParser {
     if (uri == null || !uri.hasScheme || !uri.hasAuthority) return null;
     final queryParams = uri.queryParameters;
     switch (uri.scheme) {
-      case 'hiddify':
+      // Keep hiddify:// as a legacy import alias for existing shared links.
+      case 'sod' || 'hiddify':
         if (queryParams.containsKey('url')) {
-          // Doc form: hiddify://install-config?url=<uri>#<name> — the name lives
+          // Doc form: sod://install-config?url=<uri>#<name> — the name lives
           // in the fragment. Prefer an explicit `name=` param, else the fragment.
           final name = (queryParams['name']?.isNotEmpty ?? false) ? queryParams['name']! : uri.fragment;
           return (url: queryParams['url']!, name: name);

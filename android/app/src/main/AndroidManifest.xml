@@ -76,6 +76,8 @@
                 <category android:name="android.intent.category.DEFAULT" />
                 <category android:name="android.intent.category.BROWSABLE" />
 
+                <data android:scheme="sod" />
+                <!-- Legacy import links remain accepted for migration. -->
                 <data android:scheme="hiddify" />
                 <data android:scheme="v2ray" />
                 <data android:scheme="v2rayn" />
