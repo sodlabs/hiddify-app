@@ -236,8 +236,6 @@ jobs:
 
       - name: Build ${{ matrix.platform }}
         if: matrix.platform != 'windows'
-        env:
-          SENTRY_DSN: ${{ secrets.SENTRY_DSN }}
         run: |
           make ${{ matrix.platform }}-release
 
@@ -246,23 +244,9 @@ jobs:
       # prevent Android and Windows artifacts from being published.
       - name: Build Windows portable and installer
         if: matrix.platform == 'windows'
-        env:
-          SENTRY_DSN: ${{ secrets.SENTRY_DSN }}
         run: |
           make windows-zip-release
           make windows-exe-release
-
-      - name: Code Sign
-        if: ${{ inputs.upload-artifact && startsWith(matrix.platform,'windows') && vars.WINDOWS_SIGNING_ENABLED == 'true' }}
-        uses: hiddify/signtool-code-sign-sha256@main
-        with:
-          certificate: '${{ secrets.WINDOWS_SIGNING_KEY }}'
-          cert-password: '${{ secrets.WINDOWS_SIGNING_PASSWORD }}'
-          cert-sha1: '${{ secrets.WINDOWS_SIGNING_SHA1 }}'
-          folder: 'dist'
-          timestamp-server: 'http://timestamp.digicert.com'
-          recursive: true
-          description: 'Sod'
 
       - name: Copy to out Windows
         if: matrix.platform == 'windows'
@@ -285,20 +269,6 @@ jobs:
           }
           Get-ChildItem -Path out
           
-      - name: Upload Debug Symbols
-        if: ${{ inputs.upload-artifact && inputs.tag-name != 'draft' }}
-        env:
-          SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
-          SENTRY_ORG: ${{ secrets.SENTRY_ORG }}
-          SENTRY_PROJECT: ${{ secrets.SENTRY_PROJECT }}
-          SENTRY_DIST: ${{ matrix.platform == 'android-aab' && 'google-play' || 'general' }}
-        run: |
-          dart pub global activate sentry_dart_plugin
-          dart run sentry_dart_plugin 
-      
-      
-
-              
       - name: Copy to out Android APK
         if: matrix.platform == 'android-apk'
         run: |
