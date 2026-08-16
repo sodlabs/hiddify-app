@@ -58,12 +58,6 @@ class GfpHealthMonitor {
       final core = ref.read(hiddifyCoreServiceProvider);
       final validator = GfpSustainedProxyValidator(mixedPort: ref.read(ConfigOptions.mixedPort));
       _setStatus('waiting for local protocol tests');
-      final allTags = await validator.candidateOutboundTags(core);
-      if (allTags.isEmpty) {
-        _setStatus('no locally verified route');
-        return;
-      }
-      if (!shouldContinue()) return;
       // Le cœur peut renvoyer une erreur transitoire pendant son démarrage
       // tout en mettant malgré tout les délais à jour. Ce test collectif ne
       // doit donc jamais court-circuiter la preuve décisive des 64 Ko reçus.
