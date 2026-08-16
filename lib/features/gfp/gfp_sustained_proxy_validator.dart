@@ -45,7 +45,12 @@ class GfpSustainedProxyValidator {
     final selectionGroup = _selectionGroup(groups.items);
     final previousSelection = selectionGroup.selected;
 
-    final candidates = _directCandidates(selectionGroup).where(_hasFreshSuccessfulTest).toList(growable: false)
+    // urlTestCandidateGroup vient juste de terminer. Certains builds Android
+    // renvoient bien le délai mais laissent urlTestTime vide; le délai valide
+    // est donc ici le signal de succès fiable et nécessairement récent.
+    final candidates = _directCandidates(
+      selectionGroup,
+    ).where(_hasSuccessfulTest).toList(growable: false)
       ..sort((a, b) => a.urlTestDelay.compareTo(b.urlTestDelay));
 
     for (final candidate in candidates.take(maxCandidates)) {
@@ -73,11 +78,7 @@ class GfpSustainedProxyValidator {
   Iterable<OutboundInfo> _directCandidates(OutboundGroup group) =>
       group.items.where((candidate) => !candidate.isGroup && candidate.tag.isNotEmpty);
 
-  bool _hasFreshSuccessfulTest(OutboundInfo candidate) {
-    if (!ConnectionConst.isValidDelay(candidate.urlTestDelay) || !candidate.hasUrlTestTime()) return false;
-    final age = DateTime.now().toUtc().difference(candidate.urlTestTime.toDateTime());
-    return age >= const Duration(minutes: -1) && age <= const Duration(minutes: 5);
-  }
+  bool _hasSuccessfulTest(OutboundInfo candidate) => ConnectionConst.isValidDelay(candidate.urlTestDelay);
 
   Future<bool> _selectCandidate(HiddifyCoreService core, String groupTag, String candidateTag) async {
     try {

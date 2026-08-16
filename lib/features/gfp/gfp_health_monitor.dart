@@ -57,36 +57,36 @@ class GfpHealthMonitor {
     try {
       final core = ref.read(hiddifyCoreServiceProvider);
       final validator = GfpSustainedProxyValidator(mixedPort: ref.read(ConfigOptions.mixedPort));
-      _setStatus('testing routes locally');
+      _setStatus('waiting for local protocol tests');
       final allTags = await validator.candidateOutboundTags(core);
       if (allTags.isEmpty) {
-        _setStatus('no route available — refresh manually');
+        _setStatus('no locally verified route');
         return;
       }
       if (!shouldContinue()) return;
       final tested = await validator.urlTestCandidateGroup(core);
       if (!tested) {
-        _setStatus('route tests failed — refresh manually');
+        _setStatus('no locally verified route');
         return;
       }
       if (!shouldContinue()) return;
 
-      _setStatus('checking sustained download');
+      _setStatus('checking real local transfer');
       final stableTag = await validator.selectStableOutbound(core);
       if (!shouldContinue()) return;
       if (stableTag == null) {
-        _setStatus('no verified route — refresh manually');
+        _setStatus('no locally verified route');
         return;
       }
 
       // La route est maintenant un outbound concret, pas le groupe round-robin.
       // Elle reste verrouillée jusqu'à une action explicite de l'utilisateur ou
       // au prochain démarrage du tunnel. Aucun basculement en arrière-plan.
-      _setStatus('verified route locked — automatic switching off');
+      _setStatus('using locally verified route');
     } catch (error, stackTrace) {
       if (!shouldContinue()) return;
       debugPrint('sodlab local route validation error: $error\n$stackTrace');
-      _setStatus('local route validation stopped');
+      _setStatus('no locally verified route');
     }
   }
 
