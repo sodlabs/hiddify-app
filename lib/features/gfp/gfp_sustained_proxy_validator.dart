@@ -14,6 +14,10 @@ class GfpSustainedProxyValidator {
   // avant de se figer. 64 Ko reste léger, mais prouve une réception soutenue.
   static const _minimumBytes = 64 * 1024;
   static final _testUrls = <Uri>[
+    // Le endpoint HTTP évite les différences de gestion CONNECT/TLS de
+    // dart:io sur Android. Le contenu est aléatoire et non sensible; ce test
+    // sert uniquement à prouver 64 Ko réellement reçus via le proxy local.
+    Uri.parse('http://speed.cloudflare.com/__down?bytes=$_minimumBytes'),
     Uri.parse('https://speed.cloudflare.com/__down?bytes=$_minimumBytes'),
     Uri.parse('https://raw.githubusercontent.com/SagerNet/sing-geosite/rule-set/geosite-category-ads-all.srs'),
   ];
@@ -57,6 +61,9 @@ class GfpSustainedProxyValidator {
       final wasSelected = await _selectCandidate(core, selectionGroup.tag, candidate.tag);
       if (!wasSelected) continue;
 
+      // selectOutbound confirme la commande avant que le routeur local ait
+      // toujours propagé le nouveau membre à ses connexions entrantes.
+      await Future<void>.delayed(const Duration(milliseconds: 500));
       if (await _canTransferPayload()) return candidate.tag;
     }
 
