@@ -83,7 +83,6 @@ Future<List<GfpProxyCandidate>> testAll(
   List<GfpProxyCandidate> candidates, {
   int concurrency = 6,
   Duration timeout = const Duration(seconds: 4),
-  int? stopAfterReachable,
   void Function(int done, int total)? onProgress,
 }) async {
   if (candidates.isEmpty) return [];
@@ -91,11 +90,9 @@ Future<List<GfpProxyCandidate>> testAll(
   final results = List<GfpProxyCandidate?>.filled(candidates.length, null);
   var index = 0;
   var done = 0;
-  var reachable = 0;
 
   Future<void> worker() async {
     while (true) {
-      if (stopAfterReachable != null && reachable >= stopAfterReachable) return;
       final i = index;
       if (i >= candidates.length) return;
       index++;
@@ -103,7 +100,6 @@ Future<List<GfpProxyCandidate>> testAll(
       final candidate = candidates[i];
       final result = await testCandidate(candidate, timeout: timeout);
       results[i] = candidate.copyWith(reachable: result.reachable, latencyMs: result.latencyMs);
-      if (result.reachable) reachable++;
       done++;
       onProgress?.call(done, candidates.length);
     }

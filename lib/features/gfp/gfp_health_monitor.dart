@@ -58,85 +58,32 @@ class GfpHealthMonitor {
     try {
       final core = ref.read(hiddifyCoreServiceProvider);
       final validator = GfpSustainedProxyValidator(mixedPort: ref.read(ConfigOptions.mixedPort));
-      _setStatus('testing the first 10 routes');
+      _setStatus('testing routes locally');
       final allTags = await validator.candidateOutboundTags(core);
-      final quickTags = allTags.take(10).toList();
-      if (!shouldContinue()) return;
-      await _urlTestTags(core, quickTags, concurrency: 5);
-      if (!shouldContinue()) return;
-
-      _setStatus('checking real internet access');
-      final attempted = <String>{};
-      var stableTag = await validator.selectStableOutbound(core, onAttempt: attempted.add);
-      if (stableTag == null && allTags.length > quickTags.length) {
-        _setStatus('testing the remaining routes');
-        await _urlTestTags(core, allTags.skip(quickTags.length).toList(), concurrency: 4);
-        if (!shouldContinue()) return;
-        stableTag = await validator.selectStableOutbound(core, excludedTags: attempted);
+      if (allTags.isEmpty) {
+        _setStatus('no route available — refresh manually');
+        return;
       }
       if (!shouldContinue()) return;
+      await _urlTestTags(core, allTags, concurrency: 4);
+      if (!shouldContinue()) return;
+
+      _setStatus('checking sustained download');
+      final stableTag = await validator.selectStableOutbound(core);
+      if (!shouldContinue()) return;
       if (stableTag == null) {
-        _setStatus('no locally verified route');
+        _setStatus('no verified route — refresh manually');
         return;
       }
 
-      _setStatus('using locally verified route');
-      await _monitorRoute(core, validator, shouldContinue: shouldContinue);
+      // La route est maintenant un outbound concret, pas le groupe round-robin.
+      // Elle reste verrouillée jusqu'à une action explicite de l'utilisateur ou
+      // au prochain démarrage du tunnel. Aucun basculement en arrière-plan.
+      _setStatus('verified route locked — automatic switching off');
     } catch (error, stackTrace) {
       if (!shouldContinue()) return;
       debugPrint('sodlab local route validation error: $error\n$stackTrace');
       _setStatus('local route validation stopped');
-    }
-  }
-
-  Future<void> _monitorRoute(
-    HiddifyCoreService core,
-    GfpSustainedProxyValidator validator, {
-    required bool Function() shouldContinue,
-  }) async {
-    final streaks = <String, int>{};
-    var cycle = 0;
-
-    while (shouldContinue() && _isGfpProfileActive()) {
-      final delay = switch (cycle) {
-        0 => const Duration(seconds: 15),
-        1 => const Duration(minutes: 2),
-        _ => const Duration(minutes: 15),
-      };
-      await Future<void>.delayed(delay);
-      if (!shouldContinue() || !_isGfpProfileActive()) return;
-
-      _setStatus('refreshing standby routes');
-      await _urlTestGroup(core);
-      if (!shouldContinue() || !_isGfpProfileActive()) return;
-
-      final healthy = await validator.healthyOutboundTags(core);
-      final knownTags = {...streaks.keys, ...healthy};
-      for (final tag in knownTags) {
-        streaks[tag] = healthy.contains(tag) ? (streaks[tag] ?? 0) + 1 : 0;
-      }
-
-      final activeWorks = await validator.canTransferActiveRoute();
-      if (!shouldContinue() || !_isGfpProfileActive()) return;
-      if (!activeWorks) {
-        _setStatus('active route lost — finding a replacement');
-        final replacement = await validator.selectStableOutbound(core);
-        if (!shouldContinue()) return;
-        if (replacement == null) {
-          _setStatus('no working route — retrying soon');
-          cycle = 0;
-          continue;
-        }
-        cycle = 0;
-      } else {
-        cycle++;
-      }
-
-      final stableCount = streaks.values.where((streak) => streak >= 2).length;
-      final confirmedCount = streaks.values.where((streak) => streak >= 3).length;
-      _setStatus(
-        confirmedCount > 0 ? '$confirmedCount confirmed routes ($stableCount stable)' : '$stableCount stable routes',
-      );
     }
   }
 
@@ -158,25 +105,6 @@ class GfpHealthMonitor {
 
     final workerCount = concurrency < tags.length ? concurrency : tags.length;
     await Future.wait(List.generate(workerCount, (_) => worker()));
-  }
-
-  Future<void> _urlTestGroup(HiddifyCoreService core) async {
-    try {
-      final result = await core.urlTest('balance').run().timeout(const Duration(seconds: 90));
-      if (result.isRight()) return;
-    } catch (_) {
-      // Certains profils n'ont pas de groupe balance.
-    }
-    try {
-      await core.urlTest('select').run().timeout(const Duration(seconds: 90));
-    } catch (_) {
-      // Nouvelle tentative au prochain passage.
-    }
-  }
-
-  bool _isGfpProfileActive() {
-    final profile = ref.read(activeProfileProvider).valueOrNull;
-    return profile != null && isGfpProfileName(_profileName(profile));
   }
 
   void _setStatus(String value) => ref.read(gfpHealthStatusProvider.notifier).update(value);

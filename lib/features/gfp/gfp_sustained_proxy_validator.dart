@@ -8,9 +8,11 @@ import 'package:hiddify/hiddifycore/hiddify_core_service.dart';
 
 // Confirme une route avec un vrai transfert local.
 class GfpSustainedProxyValidator {
-  const GfpSustainedProxyValidator({required this.mixedPort, this.maxCandidates = 10});
+  const GfpSustainedProxyValidator({required this.mixedPort, this.maxCandidates = 20});
 
-  static const _minimumBytes = 8 * 1024;
+  // Les faux positifs observés transféraient parfois quelques dizaines de Ko
+  // avant de se figer. 64 Ko reste léger, mais prouve une réception soutenue.
+  static const _minimumBytes = 64 * 1024;
   static final _testUrls = <Uri>[
     Uri.parse('https://speed.cloudflare.com/__down?bytes=$_minimumBytes'),
     Uri.parse('https://raw.githubusercontent.com/SagerNet/sing-geosite/rule-set/geosite-category-ads-all.srs'),
@@ -26,37 +28,26 @@ class GfpSustainedProxyValidator {
     return limit == null ? tags.toList() : tags.take(limit).toList();
   }
 
-  Future<Set<String>> healthyOutboundTags(HiddifyCoreService core) async {
-    final groups = await core.core.bgClient.outboundsInfo(Empty()).first.timeout(const Duration(seconds: 45));
-    if (groups.items.isEmpty) return const {};
-    final group = _candidateGroup(groups.items);
-    return group.items.where(_hasFreshSuccessfulTest).map((candidate) => candidate.tag).toSet();
-  }
-
-  Future<bool> canTransferActiveRoute() => _canTransferPayload();
-
-  Future<String?> selectStableOutbound(
-    HiddifyCoreService core, {
-    Set<String> excludedTags = const {},
-    void Function(String tag)? onAttempt,
-  }) async {
+  Future<String?> selectStableOutbound(HiddifyCoreService core) async {
     final groups = await core.core.bgClient.outboundsInfo(Empty()).first.timeout(const Duration(seconds: 45));
     if (groups.items.isEmpty) return null;
     final candidateGroup = _candidateGroup(groups.items);
     final selectionGroup = groups.items.firstWhere((group) => group.tag == 'select', orElse: () => candidateGroup);
+    final previousSelection = selectionGroup.selected;
 
-    final candidates =
-        candidateGroup.items
-            .where((candidate) => _hasFreshSuccessfulTest(candidate) && !excludedTags.contains(candidate.tag))
-            .toList(growable: false)
-          ..sort((a, b) => a.urlTestDelay.compareTo(b.urlTestDelay));
+    final candidates = candidateGroup.items.where(_hasFreshSuccessfulTest).toList(growable: false)
+      ..sort((a, b) => a.urlTestDelay.compareTo(b.urlTestDelay));
 
     for (final candidate in candidates.take(maxCandidates)) {
-      onAttempt?.call(candidate.tag);
       final wasSelected = await _selectCandidate(core, selectionGroup.tag, candidate.tag);
       if (!wasSelected) continue;
 
       if (await _canTransferPayload()) return candidate.tag;
+    }
+
+    // Ne jamais laisser le sélecteur sur le dernier candidat en échec.
+    if (previousSelection.isNotEmpty) {
+      await _selectCandidate(core, selectionGroup.tag, previousSelection);
     }
     return null;
   }

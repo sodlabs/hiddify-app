@@ -16,8 +16,8 @@ const Set<String> kGfpLegacyProfileTitles = {'sodlab (auto, non verifie)'};
 bool isGfpProfileName(String name) => name == kGfpProfileTitle || kGfpLegacyProfileTitles.contains(name);
 
 // Ne pas reprendre l'ancien cache, construit avec un filtre moins strict.
-const _cacheKeyContent = 'gfp_subscription_content_v8';
-const _cacheKeyTimestamp = 'gfp_subscription_timestamp_v8';
+const _cacheKeyContent = 'gfp_subscription_content_v9';
+const _cacheKeyTimestamp = 'gfp_subscription_timestamp_v9';
 
 class GfpNoReachableProxyException implements Exception {
   const GfpNoReachableProxyException();
@@ -95,15 +95,12 @@ class GfpProxyService {
     }
     final all = selectDiverseCandidates(deduplicated.values, limit: maxCandidatesToTest);
 
-    final tested = await testAll(
-      all,
-      concurrency: concurrency,
-      timeout: testTimeout,
-      stopAfterReachable: maxFinal,
-      onProgress: onProgress,
-    );
+    final tested = await testAll(all, concurrency: concurrency, timeout: testTimeout, onProgress: onProgress);
 
-    // Le moteur fera ensuite les tests complets de protocole et de transfert.
+    // Un port TCP ouvert n'est pas une preuve de proxy fonctionnel. Tester tout
+    // l'échantillon empêche les premiers Reality joignables de masquer les
+    // protocoles de secours. Le moteur effectuera ensuite le handshake complet
+    // et un vrai téléchargement avant de verrouiller une route.
     final selected = selectDiverseCandidates(tested.where((candidate) => candidate.reachable), limit: maxFinal);
 
     if (selected.isEmpty) throw const GfpNoReachableProxyException();
@@ -141,7 +138,7 @@ class GfpProxyService {
         final key = candidate.identityKey;
         final hostKey = candidate.host.toLowerCase();
         final hostCount = perHost[hostKey] ?? 0;
-        if (!seen.add(key) || hostCount >= 4) return;
+        if (!seen.add(key) || hostCount >= 2) return;
 
         eligibleCount++;
         if (candidates.length < maxCandidates) {
@@ -242,15 +239,17 @@ List<GfpProxyCandidate> selectDiverseCandidates(Iterable<GfpProxyCandidate> cand
       )
       .toList(growable: false);
 
-  // Garde quelques solutions de repli lorsque les listes Reality vieillissent.
+  // Reality reste majoritaire, mais les protocoles TCP éprouvés sont placés
+  // avant les transports que seul le moteur peut tester. Pour une liste de 12,
+  // on conserve normalement 6 Reality et 6 solutions de repli distinctes.
   final tiers = <({List<GfpProxyCandidate> candidates, double share})>[
     (candidates: reality, share: 0.50),
-    (candidates: awg, share: 0.10),
-    (candidates: quic, share: 0.15),
-    (candidates: trojan, share: 0.10),
-    (candidates: shadowsocks, share: 0.08),
+    (candidates: trojan, share: 0.15),
+    (candidates: vmess, share: 0.10),
+    (candidates: shadowsocks, share: 0.10),
     (candidates: vless, share: 0.05),
-    (candidates: vmess, share: 0.02),
+    (candidates: quic, share: 0.07),
+    (candidates: awg, share: 0.03),
     (candidates: other, share: 0.0),
   ];
   for (final tier in tiers) {

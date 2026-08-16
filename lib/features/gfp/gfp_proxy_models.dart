@@ -38,12 +38,12 @@ class GfpProxyCandidate {
   // Ordre utilisé avant les tests locaux.
   int get priorityScore {
     if (reality) return 0;
-    if (scheme == 'awg') return 1;
-    if (scheme == 'hy2' || scheme == 'hysteria2' || scheme == 'tuic') return 2;
-    if (scheme == 'trojan') return 3;
-    if (scheme == 'ss') return 4;
-    if (scheme == 'vless') return 5;
-    if (scheme == 'vmess') return 6;
+    if (scheme == 'trojan') return 1;
+    if (scheme == 'vmess') return 2;
+    if (scheme == 'ss') return 3;
+    if (scheme == 'vless') return 4;
+    if (scheme == 'hy2' || scheme == 'hysteria2' || scheme == 'tuic') return 5;
+    if (scheme == 'awg') return 6;
     return 7;
   }
 }

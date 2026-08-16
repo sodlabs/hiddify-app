@@ -401,9 +401,9 @@ Future<String> _refreshForCurrentNetwork(
 
   // Le Wi-Fi permet un scan plus large sans charger inutilement le téléphone.
   return service.refresh(
-    maxCandidatesToTest: deepScan ? (onWifi ? 1000 : 240) : (onWifi ? 64 : 40),
-    concurrency: deepScan ? (onWifi ? 12 : 6) : (onWifi ? 10 : 6),
-    maxFinal: deepScan ? 32 : 24,
+    maxCandidatesToTest: deepScan ? (onWifi ? 1000 : 240) : (onWifi ? 96 : 48),
+    concurrency: deepScan ? (onWifi ? 12 : 6) : (onWifi ? 8 : 4),
+    maxFinal: deepScan ? 20 : 12,
     onProgress: (done, total) => status.value = 'test $done/$total',
   );
 }
