@@ -64,11 +64,10 @@ class GfpHealthMonitor {
         return;
       }
       if (!shouldContinue()) return;
-      final tested = await validator.urlTestCandidateGroup(core);
-      if (!tested) {
-        _setStatus('no locally verified route');
-        return;
-      }
+      // Le cœur peut renvoyer une erreur transitoire pendant son démarrage
+      // tout en mettant malgré tout les délais à jour. Ce test collectif ne
+      // doit donc jamais court-circuiter la preuve décisive des 64 Ko reçus.
+      await validator.urlTestCandidateGroup(core);
       if (!shouldContinue()) return;
 
       _setStatus('checking real local transfer');

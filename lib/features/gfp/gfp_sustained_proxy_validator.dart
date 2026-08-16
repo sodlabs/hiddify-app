@@ -36,12 +36,16 @@ class GfpSustainedProxyValidator {
   /// Le cœur attend ici le tag du groupe, pas le tag de chaque membre. Un seul
   /// test du groupe remplit les délais et horodatages de tous les candidats.
   Future<bool> urlTestCandidateGroup(HiddifyCoreService core) async {
-    final groups = await core.core.bgClient.outboundsInfo(Empty()).first.timeout(const Duration(seconds: 45));
-    if (groups.items.isEmpty) return false;
-    final group = _selectionGroup(groups.items);
+    try {
+      final groups = await core.core.bgClient.outboundsInfo(Empty()).first.timeout(const Duration(seconds: 45));
+      if (groups.items.isEmpty) return false;
+      final group = _selectionGroup(groups.items);
 
-    final result = await core.urlTest(group.tag).run().timeout(const Duration(seconds: 90));
-    return result.match((_) => false, (_) => true);
+      final result = await core.urlTest(group.tag).run().timeout(const Duration(seconds: 90));
+      return result.match((_) => false, (_) => true);
+    } catch (_) {
+      return false;
+    }
   }
 
   Future<String?> selectStableOutbound(HiddifyCoreService core) async {
