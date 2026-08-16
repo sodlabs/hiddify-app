@@ -45,6 +45,10 @@ class GfpSustainedProxyValidator {
   }
 
   Future<String?> selectStableOutbound(HiddifyCoreService core) async {
+    // CoreStarted est publié avant que l'inbound mixte soit nécessairement
+    // prêt. Sur Android, son ouverture peut prendre près de cinq secondes.
+    if (!await _waitForLocalProxy()) return null;
+
     final groups = await core.core.bgClient.outboundsInfo(Empty()).first.timeout(const Duration(seconds: 45));
     if (groups.items.isEmpty) return null;
     final selectionGroup = _selectionGroup(groups.items);
@@ -100,6 +104,26 @@ class GfpSustainedProxyValidator {
   Future<bool> _canTransferPayload() async {
     for (final url in _testUrls) {
       if (await _downloadAtLeast(url, _minimumBytes)) return true;
+    }
+    return false;
+  }
+
+  Future<bool> _waitForLocalProxy() async {
+    final stopwatch = Stopwatch()..start();
+    while (stopwatch.elapsed < const Duration(seconds: 12)) {
+      Socket? probe;
+      try {
+        probe = await Socket.connect(
+          InternetAddress.loopbackIPv4,
+          mixedPort,
+          timeout: const Duration(milliseconds: 500),
+        );
+        return true;
+      } catch (_) {
+        await Future<void>.delayed(const Duration(milliseconds: 250));
+      } finally {
+        probe?.destroy();
+      }
     }
     return false;
   }
