@@ -53,18 +53,15 @@ class GfpSustainedProxyValidator {
     // prêt. Sur Android, son ouverture peut prendre près de cinq secondes.
     if (!await _waitForLocalProxy()) return null;
 
-    final groups = await core.core.bgClient.outboundsInfo(Empty()).first.timeout(const Duration(seconds: 45));
-    if (groups.items.isEmpty) return null;
-    final selectionGroup = _selectionGroup(groups.items);
+    final selectionGroup = await _waitForSelectionGroup(core);
+    if (selectionGroup == null) return null;
     final previousSelection = selectionGroup.selected;
 
-    // urlTestCandidateGroup vient juste de terminer. Certains builds Android
-    // renvoient bien le délai mais laissent urlTestTime vide; le délai valide
-    // est donc ici le signal de succès fiable et nécessairement récent.
-    final candidates = _directCandidates(
-      selectionGroup,
-    ).where(_hasSuccessfulTest).toList(growable: false)
-      ..sort((a, b) => a.urlTestDelay.compareTo(b.urlTestDelay));
+    // Le test collectif peut finir avant que tous ses résultats soient
+    // publiés. Tester chaque outbound direct reste sûr: seuls 64 Ko réellement
+    // reçus l'autorisent. Les délais valides passent simplement en premier.
+    final candidates = _directCandidates(selectionGroup).toList(growable: false)
+      ..sort((a, b) => _candidateDelay(a).compareTo(_candidateDelay(b)));
 
     for (final candidate in candidates.take(maxCandidates)) {
       final wasSelected = await _selectCandidate(core, selectionGroup.tag, candidate.tag);
@@ -94,7 +91,8 @@ class GfpSustainedProxyValidator {
   Iterable<OutboundInfo> _directCandidates(OutboundGroup group) =>
       group.items.where((candidate) => !candidate.isGroup && candidate.tag.isNotEmpty);
 
-  bool _hasSuccessfulTest(OutboundInfo candidate) => ConnectionConst.isValidDelay(candidate.urlTestDelay);
+  int _candidateDelay(OutboundInfo candidate) =>
+      ConnectionConst.isValidDelay(candidate.urlTestDelay) ? candidate.urlTestDelay : 1 << 30;
 
   Future<bool> _selectCandidate(HiddifyCoreService core, String groupTag, String candidateTag) async {
     try {
@@ -130,6 +128,24 @@ class GfpSustainedProxyValidator {
       }
     }
     return false;
+  }
+
+  Future<OutboundGroup?> _waitForSelectionGroup(HiddifyCoreService core) async {
+    final stopwatch = Stopwatch()..start();
+    while (stopwatch.elapsed < const Duration(seconds: 12)) {
+      try {
+        final groups = await core.core.bgClient
+            .outboundsInfo(Empty())
+            .first
+            .timeout(const Duration(seconds: 2));
+        if (groups.items.isNotEmpty) {
+          final group = _selectionGroup(groups.items);
+          if (_directCandidates(group).isNotEmpty) return group;
+        }
+      } catch (_) {}
+      await Future<void>.delayed(const Duration(milliseconds: 250));
+    }
+    return null;
   }
 
   Future<bool> _downloadAtLeast(Uri url, int minimumBytes) async {
