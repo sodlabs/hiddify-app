@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:convert';
 import 'dart:io';
 
 import 'package:hiddify/core/model/constants.dart';
@@ -104,6 +105,8 @@ class GfpSustainedProxyValidator {
   }
 
   Future<bool> _downloadAtLeast(Uri url, int minimumBytes) async {
+    if (url.scheme == 'http') return _downloadHttpViaLocalProxy(url, minimumBytes);
+
     final client = HttpClient()..connectionTimeout = const Duration(seconds: 7);
     client.userAgent = 'Mozilla/5.0';
     client.findProxy = (_) => 'PROXY 127.0.0.1:$mixedPort';
@@ -124,5 +127,66 @@ class GfpSustainedProxyValidator {
     } finally {
       client.close(force: true);
     }
+  }
+
+  Future<bool> _downloadHttpViaLocalProxy(Uri url, int minimumBytes) async {
+    Socket? socket;
+    try {
+      socket = await Socket.connect(
+        InternetAddress.loopbackIPv4,
+        mixedPort,
+        timeout: const Duration(seconds: 7),
+      );
+      socket.write(
+        'GET $url HTTP/1.1\r\n'
+        'Host: ${url.host}\r\n'
+        'Accept-Encoding: identity\r\n'
+        'Connection: close\r\n\r\n',
+      );
+      await socket.flush();
+
+      final pending = <int>[];
+      var headersRead = false;
+      var received = 0;
+      await for (final chunk in socket.timeout(const Duration(seconds: 8))) {
+        if (headersRead) {
+          received += chunk.length;
+        } else {
+          pending.addAll(chunk);
+          final headerEnd = _httpHeaderEnd(pending);
+          if (headerEnd < 0) {
+            if (pending.length > 16 * 1024) return false;
+            continue;
+          }
+
+          final statusLine = ascii
+              .decode(pending.take(headerEnd).toList(), allowInvalid: true)
+              .split('\r\n')
+              .first;
+          if (!RegExp(r'^HTTP/1\.[01] 200(?: |$)').hasMatch(statusLine)) return false;
+          headersRead = true;
+          received = pending.length - headerEnd - 4;
+          pending.clear();
+        }
+        if (received >= minimumBytes) return true;
+      }
+      return false;
+    } catch (_) {
+      return false;
+    } finally {
+      socket?.destroy();
+    }
+  }
+
+  int _httpHeaderEnd(List<int> bytes) {
+    for (var index = 0; index <= bytes.length - 4; index++) {
+      if (bytes[index] == 13 &&
+          bytes[index + 1] == 10 &&
+          bytes[index + 2] == 13 &&
+          bytes[index + 3] == 10) {
+        return index;
+      }
+    }
+    return -1;
   }
 }
