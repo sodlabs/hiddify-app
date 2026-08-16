@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
+import 'package:hiddify/features/gfp/gfp_proxy_models.dart';
 import 'package:hiddify/features/gfp/gfp_proxy_parser.dart';
 import 'package:hiddify/features/gfp/gfp_proxy_service.dart';
 import 'package:hiddify/features/gfp/gfp_proxy_tester.dart';
@@ -54,6 +55,29 @@ void main() {
         'vless://11111111-1111-1111-1111-111111111111@invalid.example:443?security=none&encryption=broken';
 
     expect(parseProxyList('$invalidUuid\n$invalidRealityKey\n$invalidEncryption'), isEmpty);
+  });
+
+  test('rejects an encoded non-DNS host from a public list', () {
+    const malformed = 'trojan://password@%E5%AE%B9%E8%A7%A3%E6%9E%90%E9%94%99%E8%AF%AFtrojan:443?sni=cdn.example';
+
+    expect(parseProxyList(malformed), isEmpty);
+  });
+
+  test('reports a synchronous socket address error instead of aborting the scan', () async {
+    final candidate = GfpProxyCandidate(
+      scheme: 'trojan',
+      host: '%E5%AE%B9trojan',
+      port: 443,
+      reality: false,
+      label: 'malformed',
+      raw: 'trojan://password@invalid:443',
+      identityKey: 'malformed',
+    );
+
+    final result = await testCandidate(candidate);
+
+    expect(result.reachable, isFalse);
+    expect(result.stage, 'tcp');
   });
 
   test('rejects an unsupported VLESS flow before it can crash the core parser', () {

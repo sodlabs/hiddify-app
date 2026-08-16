@@ -25,13 +25,17 @@ Future<GfpTestResult> testCandidate(
 
   final start = DateTime.now();
   Socket socket;
-  final connect = Socket.connect(candidate.host, candidate.port);
+  Future<Socket>? connect;
 
   try {
+    connect = Socket.connect(candidate.host, candidate.port);
     socket = await connect.timeout(timeout);
   } on TimeoutException catch (e) {
     // Le timeout n'annule pas Socket.connect : fermer la socket si elle arrive plus tard.
-    unawaited(connect.then((lateSocket) => lateSocket.destroy()).catchError((_) {}));
+    final pendingConnect = connect;
+    if (pendingConnect != null) {
+      unawaited(pendingConnect.then((lateSocket) => lateSocket.destroy()).catchError((_) {}));
+    }
     return GfpTestResult(reachable: false, stage: 'tcp', error: e.toString());
   } catch (e) {
     return GfpTestResult(reachable: false, stage: 'tcp', error: e.toString());

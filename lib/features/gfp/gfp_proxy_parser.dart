@@ -1,10 +1,35 @@
 import 'dart:convert';
+import 'dart:io';
 
 import 'package:hiddify/features/gfp/gfp_proxy_models.dart';
 
 const Set<String> kSupportedSchemes = {'vless', 'vmess', 'trojan', 'ss', 'hy2', 'hysteria2', 'tuic', 'awg'};
 final _uuidPattern = RegExp(r'^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$');
 final _shortIdPattern = RegExp(r'^[0-9a-fA-F]{2,16}$');
+
+bool _isValidNetworkHost(String value) {
+  var host = value.trim();
+  if (host.isEmpty || host.length > 253 || host.contains('%')) return false;
+  if (InternetAddress.tryParse(host) != null) return true;
+
+  // Uri accepte et encode certains textes Unicode dans la partie hôte. Dart IO
+  // les interprète ensuite comme des IPv6 avec scope et peut lever avant même
+  // que le Future de connexion existe. Les listes publiques doivent fournir
+  // une IP ou un nom DNS ASCII (punycode pour un domaine internationalisé).
+  if (host.endsWith('.')) host = host.substring(0, host.length - 1);
+  final labels = host.split('.');
+  if (labels.any(
+    (label) =>
+        label.isEmpty ||
+        label.length > 63 ||
+        label.startsWith('-') ||
+        label.endsWith('-') ||
+        !RegExp(r'^[A-Za-z0-9-]+$').hasMatch(label),
+  )) {
+    return false;
+  }
+  return true;
+}
 
 Uri? _safeParseUri(String line) {
   try {
@@ -28,7 +53,7 @@ GfpProxyCandidate? _parseVmess(String line) {
     final host = config['add']?.toString().trim() ?? '';
     final port = int.tryParse(config['port']?.toString() ?? '') ?? 443;
     final id = config['id']?.toString().trim() ?? '';
-    if (host.isEmpty || port < 1 || port > 65535 || !_uuidPattern.hasMatch(id)) return null;
+    if (!_isValidNetworkHost(host) || port < 1 || port > 65535 || !_uuidPattern.hasMatch(id)) return null;
 
     return GfpProxyCandidate(
       scheme: 'vmess',
@@ -118,7 +143,7 @@ List<GfpProxyCandidate> parseProxyList(String rawText, {bool realityOnly = false
 
     final host = uri.host;
     final port = uri.port != 0 ? uri.port : 443;
-    if (host.isEmpty) continue;
+    if (!_isValidNetworkHost(host)) continue;
 
     final reality = scheme == 'vless' && _isReality(uri);
     if (realityOnly && !reality) continue;
