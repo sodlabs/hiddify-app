@@ -24,7 +24,7 @@ class GfpSustainedProxyValidator {
   Future<List<String>> candidateOutboundTags(HiddifyCoreService core, {int? limit}) async {
     final groups = await core.core.bgClient.outboundsInfo(Empty()).first.timeout(const Duration(seconds: 45));
     if (groups.items.isEmpty) return const [];
-    final tags = _candidateGroup(groups.items).items.map((candidate) => candidate.tag);
+    final tags = _directCandidates(_selectionGroup(groups.items)).map((candidate) => candidate.tag);
     return limit == null ? tags.toList() : tags.take(limit).toList();
   }
 
@@ -33,7 +33,7 @@ class GfpSustainedProxyValidator {
   Future<bool> urlTestCandidateGroup(HiddifyCoreService core) async {
     final groups = await core.core.bgClient.outboundsInfo(Empty()).first.timeout(const Duration(seconds: 45));
     if (groups.items.isEmpty) return false;
-    final group = _candidateGroup(groups.items);
+    final group = _selectionGroup(groups.items);
 
     final result = await core.urlTest(group.tag).run().timeout(const Duration(seconds: 90));
     return result.match((_) => false, (_) => true);
@@ -42,11 +42,10 @@ class GfpSustainedProxyValidator {
   Future<String?> selectStableOutbound(HiddifyCoreService core) async {
     final groups = await core.core.bgClient.outboundsInfo(Empty()).first.timeout(const Duration(seconds: 45));
     if (groups.items.isEmpty) return null;
-    final candidateGroup = _candidateGroup(groups.items);
-    final selectionGroup = groups.items.firstWhere((group) => group.tag == 'select', orElse: () => candidateGroup);
+    final selectionGroup = _selectionGroup(groups.items);
     final previousSelection = selectionGroup.selected;
 
-    final candidates = candidateGroup.items.where(_hasFreshSuccessfulTest).toList(growable: false)
+    final candidates = _directCandidates(selectionGroup).where(_hasFreshSuccessfulTest).toList(growable: false)
       ..sort((a, b) => a.urlTestDelay.compareTo(b.urlTestDelay));
 
     for (final candidate in candidates.take(maxCandidates)) {
@@ -63,13 +62,16 @@ class GfpSustainedProxyValidator {
     return null;
   }
 
-  OutboundGroup _candidateGroup(List<OutboundGroup> groups) {
+  OutboundGroup _selectionGroup(List<OutboundGroup> groups) {
     return groups.firstWhere(
-      (group) => group.tag == 'balance' && group.items.isNotEmpty,
+      (group) => group.tag == 'select' && group.selectable && group.items.isNotEmpty,
       orElse: () =>
           groups.firstWhere((group) => group.selectable && group.items.isNotEmpty, orElse: () => groups.first),
     );
   }
+
+  Iterable<OutboundInfo> _directCandidates(OutboundGroup group) =>
+      group.items.where((candidate) => !candidate.isGroup && candidate.tag.isNotEmpty);
 
   bool _hasFreshSuccessfulTest(OutboundInfo candidate) {
     if (!ConnectionConst.isValidDelay(candidate.urlTestDelay) || !candidate.hasUrlTestTime()) return false;
@@ -96,7 +98,7 @@ class GfpSustainedProxyValidator {
   Future<bool> _downloadAtLeast(Uri url, int minimumBytes) async {
     final client = HttpClient()..connectionTimeout = const Duration(seconds: 7);
     client.userAgent = 'Mozilla/5.0';
-    client.findProxy = (_) => 'PROXY localhost:$mixedPort';
+    client.findProxy = (_) => 'PROXY 127.0.0.1:$mixedPort';
 
     try {
       final request = await client.getUrl(url).timeout(const Duration(seconds: 7));
