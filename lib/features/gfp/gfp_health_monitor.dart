@@ -6,7 +6,6 @@ import 'package:hiddify/features/gfp/gfp_sustained_proxy_validator.dart';
 import 'package:hiddify/features/profile/model/profile_entity.dart';
 import 'package:hiddify/features/profile/notifier/active_profile_notifier.dart';
 import 'package:hiddify/features/settings/data/config_option_repository.dart';
-import 'package:hiddify/hiddifycore/hiddify_core_service.dart';
 import 'package:hiddify/hiddifycore/hiddify_core_service_provider.dart';
 import 'package:hiddify/singbox/model/core_status.dart';
 import 'package:hooks_riverpod/hooks_riverpod.dart';
@@ -65,7 +64,11 @@ class GfpHealthMonitor {
         return;
       }
       if (!shouldContinue()) return;
-      await _urlTestTags(core, allTags, concurrency: 4);
+      final tested = await validator.urlTestCandidateGroup(core);
+      if (!tested) {
+        _setStatus('route tests failed — refresh manually');
+        return;
+      }
       if (!shouldContinue()) return;
 
       _setStatus('checking sustained download');
@@ -85,26 +88,6 @@ class GfpHealthMonitor {
       debugPrint('sodlab local route validation error: $error\n$stackTrace');
       _setStatus('local route validation stopped');
     }
-  }
-
-  Future<void> _urlTestTags(HiddifyCoreService core, List<String> tags, {required int concurrency}) async {
-    var index = 0;
-
-    Future<void> worker() async {
-      while (true) {
-        final current = index;
-        if (current >= tags.length) return;
-        index++;
-        try {
-          await core.urlTest(tags[current]).run().timeout(const Duration(seconds: 25));
-        } catch (_) {
-          // L'échec reste enregistré par le moteur.
-        }
-      }
-    }
-
-    final workerCount = concurrency < tags.length ? concurrency : tags.length;
-    await Future.wait(List.generate(workerCount, (_) => worker()));
   }
 
   void _setStatus(String value) => ref.read(gfpHealthStatusProvider.notifier).update(value);
