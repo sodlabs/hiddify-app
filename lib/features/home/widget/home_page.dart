@@ -91,6 +91,19 @@ class HomePage extends HookConsumerWidget {
     }, const []);
 
     Future<void> confirmAndRefresh() async {
+      final connection = ref.read(connectionNotifierProvider).valueOrNull;
+      if (connection != null && !connection.isDisconnected) {
+        await showDialog<void>(
+          context: context,
+          builder: (context) => AlertDialog(
+            title: Text(t.connection.connected),
+            content: Text(t.pages.home.refreshBlockedConnected),
+            actions: [TextButton(onPressed: () => Navigator.pop(context), child: Text(t.common.ok))],
+          ),
+        );
+        return;
+      }
+
       final confirmed = await showDialog<bool>(
         context: context,
         builder: (context) => AlertDialog(
@@ -103,7 +116,12 @@ class HomePage extends HookConsumerWidget {
         ),
       );
       if (confirmed == true) {
-        await _refreshGfpProfileManually(ref, gfpStatus, gfpError);
+        await _refreshGfpProfileManually(
+          ref,
+          gfpStatus,
+          gfpError,
+          connectedMessage: t.pages.home.refreshBlockedConnected,
+        );
       }
     }
 
@@ -413,8 +431,9 @@ Future<String> _refreshForCurrentNetwork(
 Future<void> _refreshGfpProfileManually(
   WidgetRef ref,
   ValueNotifier<String> status,
-  ValueNotifier<String?> error,
-) async {
+  ValueNotifier<String?> error, {
+  required String connectedMessage,
+}) async {
   try {
     error.value = null;
     status.value = 'deep refresh: collecting and testing proxies';
@@ -428,6 +447,15 @@ Future<void> _refreshGfpProfileManually(
 
     final service = GfpProxyService();
     final content = await _refreshForCurrentNetwork(service, status, deepScan: true);
+
+    // Le scan peut durer. Si l'utilisateur s'est connecté entre-temps, garder
+    // le tunnel intact et ne jamais remplacer le profil actif sous ses pieds.
+    final connection = ref.read(connectionNotifierProvider).valueOrNull;
+    if (connection != null && !connection.isDisconnected) {
+      error.value = connectedMessage;
+      return;
+    }
+
     final result = await repo.offlineUpdate(profile, content).run();
     await result.match(
       (failure) {

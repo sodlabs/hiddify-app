@@ -111,6 +111,7 @@
       "refreshAction": "Buscar nuevas rutas",
       "refreshTitle": "¿Buscar nuevas rutas públicas?",
       "refreshMessage": "Este análisis local profundo reemplaza la lista pública actual y puede reconectar la VPN. Ejecútalo cuando sea seguro interrumpir la conexión.",
+      "refreshBlockedConnected": "Desconecta la VPN antes de actualizar las rutas. Sod nunca interrumpirá automáticamente una conexión activa.",
       "publicProxyNotice": {
         "title": "Las rutas públicas requieren precaución",
         "message": "Los proxies públicos son operados por terceros. Prefiere HTTPS y evita banca, contraseñas o datos confidenciales durante la conexión.",

@@ -111,6 +111,7 @@
       "refreshAction": "尋找新路線",
       "refreshTitle": "尋找新的公共路線？",
       "refreshMessage": "此深度本機掃描會取代目前的公共清單，並可能重新連線 VPN。請在可安全中斷連線時執行。",
+      "refreshBlockedConnected": "請先中斷 VPN 再重新整理路線。Sod 絕不會自動中斷使用中的連線。",
       "publicProxyNotice": {
         "title": "使用公共路線時請格外謹慎",
         "message": "公共代理由第三方營運。請優先使用 HTTPS，連線期間避免銀行服務、密碼或機密資料。",

@@ -111,6 +111,7 @@
       "refreshAction": "Yeni rotalar bul",
       "refreshTitle": "Yeni genel rotalar bulunsun mu?",
       "refreshMessage": "Bu derin yerel tarama mevcut genel listeyi değiştirir ve VPN’i yeniden bağlayabilir. Bağlantının kesilmesi güvenliyken çalıştırın.",
+      "refreshBlockedConnected": "Rotaları yenilemeden önce VPN bağlantısını kesin. Sod etkin bir bağlantıyı asla otomatik olarak kesmez.",
       "publicProxyNotice": {
         "title": "Genel rotalar dikkat gerektirir",
         "message": "Genel proxy’ler üçüncü taraflarca işletilir. HTTPS kullanın ve bağlıyken bankacılık, parola veya gizli verilerden kaçının.",

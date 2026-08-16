@@ -111,6 +111,7 @@
       "refreshAction": "Find new routes",
       "refreshTitle": "Find new public routes?",
       "refreshMessage": "This deep local scan replaces the current public list and may reconnect the VPN. Run it when interrupting the connection is safe.",
+      "refreshBlockedConnected": "Disconnect the VPN before refreshing routes. Sod will never interrupt an active connection automatically.",
       "publicProxyNotice": {
         "title": "Public routes need extra care",
         "message": "Public proxies are operated by third parties. Prefer HTTPS and avoid banking, passwords, or confidential data while connected.",

@@ -111,6 +111,7 @@
       "refreshAction": "查找新线路",
       "refreshTitle": "查找新的公共线路？",
       "refreshMessage": "此深度本地扫描会替换当前公共列表，并可能重新连接 VPN。请在可以安全中断连接时运行。",
+      "refreshBlockedConnected": "请先断开 VPN 再刷新线路。Sod 永远不会自动中断正在使用的连接。",
       "publicProxyNotice": {
         "title": "使用公共线路时请格外谨慎",
         "message": "公共代理由第三方运营。请优先使用 HTTPS，连接期间避免银行业务、密码或机密数据。",

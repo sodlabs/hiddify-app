@@ -111,6 +111,7 @@
       "refreshAction": "Cari rute baru",
       "refreshTitle": "Cari rute publik baru?",
       "refreshMessage": "Pemindaian lokal mendalam ini mengganti daftar publik saat ini dan dapat menyambungkan ulang VPN. Jalankan saat koneksi aman untuk terputus.",
+      "refreshBlockedConnected": "Putuskan VPN sebelum memperbarui rute. Sod tidak akan pernah memutus koneksi aktif secara otomatis.",
       "publicProxyNotice": {
         "title": "Rute publik memerlukan kehati-hatian",
         "message": "Proxy publik dioperasikan pihak ketiga. Utamakan HTTPS dan hindari perbankan, kata sandi, atau data rahasia saat terhubung.",
